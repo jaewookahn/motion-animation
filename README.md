@@ -15,23 +15,28 @@ HTML Canvas로 모든 프레임을 시간 `t`의 함수로 그리고(`frame(t)`)
 | 06 | [윤동주 「서시」 (조각보)](projects/06-seosi-jogakbo/NOTES.md) | 16초 | J. 자수 · 조각보 | — |
 | 07 | [다니엘과 사자굴 (쿠르츠게작트풍)](projects/07-daniel-kurzgesagt/NOTES.md) | 15초 | K. 쿠르츠게작트 인포그래픽 | — |
 | 08 | [다니엘과 사자굴 (바이블프로젝트풍)](projects/08-daniel-bibleproject/NOTES.md) | 15초 | 크라프트지 · 펜 드로우온 · 6패널 인포그래픽 | — |
+| 09 | [다니엘과 사자굴 (단면도 디오라마)](projects/09-daniel-nutshell/LOG.md) | 15초 | K. 쿠르츠게작트풍 단면도 — 07 재제작 (v1·v2 보존) | — |
 
-스타일 기호(G·J·K 등)는 [STYLE_LIBRARY.md](STYLE_LIBRARY.md)를 따릅니다. 시리즈 영상에서 스타일을 돌려쓰기 위한 목록과 공통 규칙이 정리되어 있습니다.
+스타일 기호(G·J·K 등)는 [STYLE_LIBRARY.md](STYLE_LIBRARY.md)를 따릅니다. 좋은 결과를 낸 프롬프트·판단·피드백은 [PLAYBOOK.md](PLAYBOOK.md)에 모읍니다. 시리즈 영상에서 스타일을 돌려쓰기 위한 목록과 공통 규칙이 정리되어 있습니다.
 
 ## 구조
 ```
 README.md
 STYLE_LIBRARY.md        시리즈용 스타일 목록 + 공통 규칙 + 돌려쓰기 방법
+PLAYBOOK.md             작업 흐름 · 품질 체크리스트 · 프롬프트→결과 기록 · 배운 것
 tools/
   render.py             프로젝트 → MP4 (오디오 생성 → 120fps 캡처 → 모션 블러 → 60fps)
   stills.py             지정 시각의 스틸 PNG 뽑기 (검수용)
   sheet.py              스틸들을 컨택트 시트로 묶기
+  compare.py            여러 버전을 같은 시각으로 나란히 비교한 JPG 만들기
   setup_fonts.sh        fonts/ 채우기
 fonts/                  (git 제외)
 projects/NN-이름/
   index.html            애니메이션 (브라우저로 열면 실시간 재생)
   audio.py              사운드 합성 (없으면 무음으로 렌더)
   NOTES.md / SCENARIO.md  시나리오 · 연출 · 기법 노트
+  LOG.md                버전별 사용자 프롬프트 원문 · 해석 · 변경 · 피드백 (재제작한 작품)
+  versions/vN.html      사용자에게 보여준 버전 그대로 보존 + compare_*.jpg 비교 이미지
   out/                  렌더 결과 mp4·wav (git 제외)
 ```
 
@@ -50,6 +55,7 @@ python tools/stills.py projects/03-noah-ink /tmp/st 1,3,5          # 1·3·5초 
 python tools/sheet.py /tmp/st /tmp/sheet 9                         # 스틸 모아보기
 python tools/render.py projects/03-noah-ink --dur 10               # 최종 렌더 → out/03-noah-ink.mp4
 python tools/render.py projects/01-designingi-showreel --dur 15 --grain 6 --crf 16
+python tools/compare.py --out /tmp/cmp.jpg --times 1,5,9 projects/09-daniel-nutshell/versions/v1.html projects/09-daniel-nutshell/versions/v2.html
 ```
 `--dur`은 각 프로젝트 `index.html`의 `DUR` 값과 맞춥니다(위 작품 목록의 길이).
 
@@ -66,6 +72,7 @@ python tools/render.py projects/01-designingi-showreel --dur 15 --grain 6 --crf 
 - `projects/NN-이름/` 폴더를 만들고, 폰트는 `../../fonts/`로 참조합니다.
 - `index.html`은 `window.ready`(폰트 로드 완료 Promise)와 `window.grab(t)`(PNG dataURL 반환)를 노출합니다. `?capture=1`이 없으면 requestAnimationFrame으로 실시간 재생합니다.
 - 모든 움직임은 `t`만으로 결정합니다(난수는 `hr(i)` 해시 사용). 어느 프레임이든 같은 결과가 나와야 렌더가 재현됩니다.
+- 다시 만들 때는 덮어쓰기 전에 `versions/vN.html`로 보존하고(폰트 경로 `../../../fonts/`), `LOG.md`에 프롬프트 원문과 피드백을 적은 뒤 `tools/compare.py`로 비교 이미지를 남깁니다. 자세한 흐름은 `PLAYBOOK.md`.
 - 스타일은 `STYLE_LIBRARY.md`에서 고르고, 새 스타일은 같은 양식으로 추가한 뒤 「지금까지 만든 것」 표와 이 README의 작품 목록을 함께 갱신합니다.
 - 렌더 중 화면이 검게 나오면 Chromium GPU 플래그를 끄세요(`render.py`는 기본값으로 실행).
 
