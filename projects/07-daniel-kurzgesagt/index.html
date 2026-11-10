@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>다니엘과 사자굴 — 쿠르츠게작트 스타일 (Kurzgesagt in a Nutshell)</title>
+<style>
+@font-face { font-family: 'PB'; src: url(../../fonts/Pretendard-Black.otf); font-weight: 900; }
+@font-face { font-family: 'P'; src: url(../../fonts/Pretendard-Bold.otf); font-weight: 700; }
+@font-face { font-family: 'M'; src: url(../../fonts/HackNerdFontMono-Bold.ttf); font-weight: 700; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #090514;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 100vw;
+  height: 56.25vw;
+  max-height: 100vh;
+  max-width: 177.78vh;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.95);
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W = 1920, H = 1080, DUR = 15.0;
+const cv = document.getElementById('c');
+cv.width = W; cv.height = H;
+const c = cv.getContext('2d');
+
+// ── Math & Easing
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOutCubic = x => 1 - Math.pow(1 - x, 3);
+const eInCubic = x => x * x * x;
+const eInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eOutBack = (x, s = 2.1) => x <= 0 ? 0 : 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+const elasticOut = x => {
+  if (x === 0) return 0;
+  if (x === 1) return 1;
+  return Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1;
+};
+const hr = i => {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// ── Kurzgesagt Vibrant Color Palette
+const K = {
+  bgDeep: '#0B061A',
+  bgPurple: '#1F0E42',
+  bgMid: '#391469',
+  bgHorizon: '#6B1B82',
+  neonCyan: '#00F5D4',
+  neonBlue: '#00BBF9',
+  neonYellow: '#FEE440',
+  warmOrange: '#F77F00',
+  vividRed: '#D62828',
+  hotPink: '#F72585',
+  plum: '#7209B7',
+  lionMane: '#FF6D00',
+  lionBody: '#FF9E00',
+  lionDark: '#B23B00',
+  duckYellow: '#FFBE0B',
+  duckBeak: '#FB5607',
+  white: '#FFFFFF',
+  dark: '#05030A'
+};
+
+// ── Background Starfield / Particle Dust
+const DUST = [];
+for (let i = 0; i < 90; i++) {
+  DUST.push({
+    x: hr(i * 2.1) * W,
+    y: hr(i * 4.3) * H,
+    r: 1.5 + hr(i * 6.7) * 3.5,
+    speed: 10 + hr(i * 1.5) * 20,
+    col: hr(i * 3.3) > 0.5 ? K.neonCyan : K.hotPink,
+    a: 0.2 + hr(i * 8.9) * 0.5
+  });
+}
+
+// ── Primitives (Kurzgesagt Style Flat Shapes)
+function roundRect(x, y, w, h, r, col) {
+  c.beginPath();
+  c.roundRect(x, y, w, h, r);
+  c.fillStyle = col;
+  c.fill();
+}
+
+function circle(x, y, r, col) {
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.fillStyle = col;
+  c.fill();
+}
+
+// Kurzgesagt Signature Eye
+function drawKurzEye(x, y, r, lookX = 0, lookY = 0, isClosed = false) {
+  if (isClosed) {
+    c.strokeStyle = '#100B1A';
+    c.lineWidth = 3;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.arc(x, y + r * 0.2, r * 0.8, 0.2, Math.PI - 0.2);
+    c.stroke();
+    return;
+  }
+  // Sclera (White)
+  circle(x, y, r, K.white);
+  // Pupil (Dark)
+  const pr = r * 0.52;
+  const px = x + clamp(lookX, -1, 1) * (r - pr) * 0.7;
+  const py = y + clamp(lookY, -1, 1) * (r - pr) * 0.7;
+  circle(px, py, pr, '#110C1E');
+  // Catchlight (Tiny white dot)
+  circle(px - pr * 0.3, py - pr * 0.3, pr * 0.32, K.white);
+}
+
+// ── Kurzgesagt Duck / Daniel Character
+function drawDaniel(x, y, s, t, opt = {}) {
+  c.save();
+  c.translate(x, y);
+  c.scale(s, s);
+
+  const bob = Math.sin(t * 7) * 3;
+  const isPraying = opt.pose === 'pray';
+  const isHappy = opt.pose === 'happy';
+
+  // Shadow
+  c.beginPath();
+  c.ellipse(0, 56, 38, 12, 0, 0, Math.PI * 2);
+  c.fillStyle = 'rgba(5, 3, 10, 0.45)';
+  c.fill();
+
+  // Robe / Cape (Purple/Teal Sage Cloak)
+  c.fillStyle = '#480CA8';
+  c.beginPath();
+  c.moveTo(-32, -10 + bob);
+  c.quadraticCurveTo(-46, 35, -28, 52);
+  c.lineTo(28, 52);
+  c.quadraticCurveTo(46, 35, 32, -10 + bob);
+  c.closePath();
+  c.fill();
+
+  // Duck Body (Yellow Egg)
+  c.fillStyle = K.duckYellow;
+  c.beginPath();
+  c.ellipse(0, 10 + bob, 34, 38, 0, 0, Math.PI * 2);
+  c.fill();
+
+  // Duck Head
+  const hy = -28 + bob;
+  circle(0, hy, 28, K.duckYellow);
+
+  // Beak (Orange)
+  c.fillStyle = K.duckBeak;
+  c.beginPath();
+  if (opt.facing === 'left') {
+    c.roundRect(-42, hy - 4, 22, 14, [8, 2, 2, 8]);
+    c.fill();
+    // Eyes
+    const blink = Math.sin(t * 3.5) > 0.96;
+    drawKurzEye(-10, hy - 6, 8, -0.6, 0.1, blink || isPraying);
+  } else {
+    // Front/Right
+    c.roundRect(18, hy - 4, 22, 14, [2, 8, 8, 2]);
+    c.fill();
+    const blink = Math.sin(t * 3.5) > 0.96;
+    drawKurzEye(10, hy - 6, 8, 0.4, 0.1, blink || isPraying);
+  }
+
+  // Wing (Arms)
+  c.fillStyle = '#E5A500';
+  if (isPraying) {
+    // Folded prayer wings in front
+    c.beginPath();
+    c.ellipse(-14, 18 + bob, 16, 9, -0.6, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.ellipse(-6, 20 + bob, 14, 8, -0.3, 0, Math.PI * 2);
+    c.fill();
+  } else if (isHappy) {
+    // Raised happy wings
+    c.beginPath();
+    c.ellipse(-32, 2 + bob, 22, 10, -0.8, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.ellipse(32, 2 + bob, 22, 10, 0.8, 0, Math.PI * 2);
+    c.fill();
+  } else {
+    // Normal wing resting
+    c.beginPath();
+    c.ellipse(-16, 16 + bob, 18, 12, -0.3, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  // Little Sage Shawl (Teal Scarf)
+  c.fillStyle = K.neonCyan;
+  c.beginPath();
+  c.roundRect(-22, hy + 18, 44, 12, 6);
+  c.fill();
+
+  c.restore();
+}
+
+// ── Kurzgesagt Lion Character
+function drawLion(x, y, s, t, opt = {}) {
+  c.save();
+  c.translate(x, y);
+  c.scale(s * (opt.flip ? -1 : 1), s);
+
+  const isAsleep = opt.sleep || false;
+  const breath = Math.sin(t * 3.2 + (opt.seed || 0)) * 4;
+
+  // Ground Shadow
+  c.beginPath();
+  c.ellipse(0, 85, 75, 18, 0, 0, Math.PI * 2);
+  c.fillStyle = 'rgba(5, 3, 10, 0.55)';
+  c.fill();
+
+  // Lion Mane (Big Fluffy Segmented Circle)
+  c.fillStyle = K.lionMane;
+  const maneSegments = 10;
+  for (let i = 0; i < maneSegments; i++) {
+    const ang = (i / maneSegments) * Math.PI * 2;
+    const mx = Math.cos(ang) * 44;
+    const my = -10 + Math.sin(ang) * 44;
+    circle(mx, my, 26, K.lionMane);
+  }
+  circle(0, -10, 52, K.lionMane);
+
+  // Lion Body (Loaf or Standing)
+  c.fillStyle = K.lionBody;
+  if (isAsleep) {
+    // Loafing Cat pose (식빵 굽기)
+    c.beginPath();
+    c.roundRect(-60, 15, 120, 70, [35, 35, 20, 20]);
+    c.fill();
+    // Paws tucked
+    c.fillStyle = '#E08B00';
+    circle(-30, 80, 14, '#E08B00');
+    circle(30, 80, 14, '#E08B00');
+  } else {
+    // Sitting up attentive
+    c.beginPath();
+    c.roundRect(-48, 10, 96, 75, [30, 30, 15, 15]);
+    c.fill();
+    // Front Legs
+    c.fillStyle = '#E08B00';
+    roundRect(-36, 45, 20, 42, 10, '#E08B00');
+    roundRect(16, 45, 20, 42, 10, '#E08B00');
+  }
+
+  // Lion Face (Golden Oval)
+  c.fillStyle = K.lionBody;
+  circle(0, -10 + breath * 0.5, 42, K.lionBody);
+
+  // Lion Ears
+  circle(-34, -46, 14, K.lionBody);
+  circle(-34, -46, 7, K.lionDark);
+  circle(34, -46, 14, K.lionBody);
+  circle(34, -46, 7, K.lionDark);
+
+  // Muzzle (Cream white rounds)
+  c.fillStyle = '#FFE8B8';
+  circle(-14, 4 + breath * 0.5, 17, '#FFE8B8');
+  circle(14, 4 + breath * 0.5, 17, '#FFE8B8');
+
+  // Nose (Dark Purple triangle)
+  c.fillStyle = '#2B1245';
+  c.beginPath();
+  c.moveTo(-10, -8 + breath * 0.5);
+  c.lineTo(10, -8 + breath * 0.5);
+  c.lineTo(0, 0 + breath * 0.5);
+  c.closePath();
+  c.fill();
+
+  // Mouth & Whisker dots
+  c.fillStyle = '#2B1245';
+  circle(-16, 5 + breath * 0.5, 2.5, '#2B1245');
+  circle(-9, 8 + breath * 0.5, 2.5, '#2B1245');
+  circle(16, 5 + breath * 0.5, 2.5, '#2B1245');
+  circle(9, 8 + breath * 0.5, 2.5, '#2B1245');
+
+  // Eyes (Attentive vs Sleeping cute curves)
+  if (isAsleep) {
+    // Sleeping happy curves (^^)
+    c.strokeStyle = '#2B1245';
+    c.lineWidth = 4;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.arc(-18, -14, 10, 0.2, Math.PI - 0.2);
+    c.arc(18, -14, 10, 0.2, Math.PI - 0.2);
+    c.stroke();
+
+    // Cute Zzz particle
+    const zp = (t * 1.5 + (opt.seed || 0)) % 1;
+    c.save();
+    c.font = "bold 20px 'M'";
+    c.fillStyle = `rgba(0, 245, 212, ${1 - zp})`;
+    c.fillText('Z', 38 + zp * 24, -40 - zp * 35);
+    c.restore();
+  } else {
+    // Wide curious/predatory eyes
+    drawKurzEye(-18, -16, 13, opt.lookX || 0, opt.lookY || 0);
+    drawKurzEye(18, -16, 13, opt.lookX || 0, opt.lookY || 0);
+  }
+
+  c.restore();
+}
+
+// ── Kurzgesagt Angel Entity
+function drawAngel(x, y, s, p, t) {
+  if (p <= 0) return;
+  c.save();
+  c.translate(x, y);
+  const pop = eOutBack(p, 1.8);
+  c.scale(s * pop, s * pop);
+
+  const hover = Math.sin(t * 4) * 8;
+  c.translate(0, hover);
+
+  // Divine Neon Halo / Aura
+  const aura = c.createRadialGradient(0, -20, 20, 0, -20, 180);
+  aura.addColorStop(0, 'rgba(0, 245, 212, 0.45)');
+  aura.addColorStop(0.5, 'rgba(0, 187, 249, 0.18)');
+  aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  c.fillStyle = aura;
+  circle(0, -20, 180, aura);
+
+  // Geometric Wings (Cyan & Blue gradients)
+  const wingFlap = Math.sin(t * 6) * 0.12;
+  [-1, 1].forEach(side => {
+    c.save();
+    c.scale(side, 1);
+    c.rotate(wingFlap);
+    // Outer Wing Feathers
+    c.fillStyle = K.neonCyan;
+    c.beginPath();
+    c.moveTo(15, -10);
+    c.bezierCurveTo(70, -90, 150, -80, 180, -30);
+    c.quadraticCurveTo(120, 0, 60, 20);
+    c.closePath();
+    c.fill();
+    // Inner Wing Feather
+    c.fillStyle = K.neonBlue;
+    c.beginPath();
+    c.moveTo(15, -5);
+    c.bezierCurveTo(60, -60, 120, -50, 140, -10);
+    c.quadraticCurveTo(90, 10, 45, 25);
+    c.closePath();
+    c.fill();
+    c.restore();
+  });
+
+  // Angelic Robe (White Glowing Capsule)
+  c.fillStyle = K.white;
+  c.beginPath();
+  c.roundRect(-24, -20, 48, 80, [24, 24, 12, 12]);
+  c.fill();
+
+  // Head
+  circle(0, -42, 22, '#FFF0D0');
+
+  // Golden Geometric Halo Ring
+  c.strokeStyle = K.neonYellow;
+  c.lineWidth = 6;
+  c.beginPath();
+  c.ellipse(0, -74, 34, 11, 0, 0, Math.PI * 2);
+  c.stroke();
+
+  // Serene Closed Eyes
+  c.strokeStyle = '#2A1845';
+  c.lineWidth = 3;
+  c.lineCap = 'round';
+  c.beginPath();
+  c.arc(-8, -42, 5, 0.2, Math.PI - 0.2);
+  c.arc(8, -42, 5, 0.2, Math.PI - 0.2);
+  c.stroke();
+
+  // Hand reaching down with protective energy beam
+  circle(0, 40, 10, '#FFF0D0');
+  const beam = c.createLinearGradient(0, 40, 0, 350);
+  beam.addColorStop(0, 'rgba(0, 245, 212, 0.7)');
+  beam.addColorStop(1, 'rgba(0, 245, 212, 0)');
+  c.fillStyle = beam;
+  c.beginPath();
+  c.moveTo(-16, 40);
+  c.lineTo(16, 40);
+  c.lineTo(180, 350);
+  c.lineTo(-180, 350);
+  c.closePath();
+  c.fill();
+
+  c.restore();
+}
+
+// ── Kurzgesagt Infographic Card / HUD Label
+function drawKurzCard(x, y, w, h, title, sub, opt = {}) {
+  const p = opt.p !== undefined ? opt.p : 1;
+  if (p <= 0) return;
+  const scale = eOutBack(p, 1.8);
+  c.save();
+  c.translate(x, y);
+  c.scale(scale, scale);
+
+  // Background Box
+  const bgCol = opt.bg || 'rgba(11, 6, 26, 0.88)';
+  const borderCol = opt.border || K.neonCyan;
+  c.fillStyle = bgCol;
+  c.roundRect(-w/2, -h/2, w, h, 14);
+  c.fill();
+  c.strokeStyle = borderCol;
+  c.lineWidth = 2.5;
+  c.stroke();
+
+  // Tag Pill on top
+  if (opt.tag) {
+    const tw = 110, th = 24;
+    c.fillStyle = borderCol;
+    c.roundRect(-tw/2, -h/2 - th/2, tw, th, 12);
+    c.fill();
+    c.fillStyle = '#080512';
+    c.font = "bold 13px 'M'";
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(opt.tag, 0, -h/2);
+  }
+
+  // Texts
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillStyle = opt.titleCol || K.white;
+  c.font = `900 ${opt.titleSize || 28}px 'PB', sans-serif`;
+  c.fillText(title, 0, sub ? -8 : 0);
+
+  if (sub) {
+    c.fillStyle = opt.subCol || K.neonCyan;
+    c.font = `700 ${opt.subSize || 18}px 'M', monospace`;
+    c.fillText(sub, 0, 18);
+  }
+
+  c.restore();
+}
+
+// ── Main Frame Render Function
+function frame(t) {
+  // 1. Cosmic Deep Gradient Background
+  const bg = c.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0.0, K.bgDeep);
+  bg.addColorStop(0.5, K.bgPurple);
+  bg.addColorStop(1.0, '#0F0624');
+  c.fillStyle = bg;
+  c.fillRect(0, 0, W, H);
+
+  // 2. Kurzgesagt Floating Space Dust Particles
+  DUST.forEach(d => {
+    const curY = (d.y - t * d.speed) % H;
+    const finalY = curY < 0 ? curY + H : curY;
+    circle(d.x, finalY, d.r, d.col);
+  });
+
+  // ══════════════════════════════════════════════════
+  // SCENE 1: 0.0s ~ 3.5s — THE PROCLAMATION & PRAYER
+  // ══════════════════════════════════════════════════
+  if (t < 3.8) {
+    const s1Out = 1 - prog(t, 3.2, 3.7);
+    c.save();
+    c.globalAlpha = s1Out;
+
+    // Babylonian Palace Window Frame (Deep Indigo Geometric Arch)
+    c.fillStyle = '#220E4A';
+    c.beginPath();
+    c.roundRect(160, 180, 560, 720, [280, 280, 24, 24]);
+    c.fill();
+    c.strokeStyle = K.neonCyan;
+    c.lineWidth = 4;
+    c.stroke();
+
+    // Window View: Distant Babylon Ziggurat and Purple Moon
+    c.save();
+    c.beginPath();
+    c.roundRect(180, 200, 520, 680, [260, 260, 16, 16]);
+    c.clip();
+    // Night sky in window
+    const winSky = c.createLinearGradient(0, 200, 0, 880);
+    winSky.addColorStop(0, '#0C0620');
+    winSky.addColorStop(1, '#531368');
+    c.fillStyle = winSky;
+    c.fillRect(180, 200, 520, 680);
+    // Yellow Crescent Moon
+    circle(560, 360, 48, K.neonYellow);
+    circle(544, 350, 44, '#0C0620'); // Cutout
+    // Ziggurat silhouette
+    c.fillStyle = '#1B0934';
+    c.fillRect(240, 680, 400, 200);
+    c.fillRect(300, 600, 280, 80);
+    c.fillRect(370, 540, 140, 60);
+    c.restore();
+
+    // Daniel Praying at Window
+    drawDaniel(440, 720, 2.0, t, { pose: 'pray', facing: 'left' });
+
+    // Starlight stream shining onto Daniel
+    const prayerBeam = c.createLinearGradient(560, 360, 440, 680);
+    prayerBeam.addColorStop(0, 'rgba(0, 245, 212, 0.4)');
+    prayerBeam.addColorStop(1, 'rgba(0, 245, 212, 0)');
+    c.fillStyle = prayerBeam;
+    c.beginPath();
+    c.moveTo(560, 360);
+    c.lineTo(380, 780);
+    c.lineTo(500, 780);
+    c.closePath();
+    c.fill();
+
+    // Infographic HUD Cards (Kurzgesagt Style)
+    drawKurzCard(1320, 340, 540, 140, 'ROYAL DECREE #6', 'PRAY ONLY TO THE KING', {
+      p: prog(t, 0.3, 0.9),
+      tag: 'BABYLON LAW',
+      border: K.hotPink
+    });
+
+    drawKurzCard(1320, 530, 540, 140, 'DANIEL: PRAYING 3x / DAY', 'FACING JERUSALEM UNBOWED', {
+      p: prog(t, 1.2, 1.8),
+      tag: 'DEFIDANCE DETECTED',
+      border: K.neonYellow,
+      subCol: K.warmOrange
+    });
+
+    drawKurzCard(1320, 720, 540, 140, 'PENALTY: LIONS\' DEN', 'SURVIVAL CHANCE: 0.00%', {
+      p: prog(t, 2.1, 2.7),
+      tag: 'FATAL VERDICT',
+      border: K.vividRed,
+      subCol: K.vividRed
+    });
+
+    c.restore();
+  }
+
+  // ══════════════════════════════════════════════════
+  // SCENE 2: 3.5s ~ 7.2s — THE DESCENT INTO LIONS' DEN
+  // ══════════════════════════════════════════════════
+  if (t >= 3.4 && t < 7.5) {
+    const s2In = prog(t, 3.5, 4.2);
+    const s2Out = 1 - prog(t, 6.8, 7.4);
+    c.save();
+    c.globalAlpha = s2In * s2Out;
+
+    // Underground Pit Architecture
+    const pitGrad = c.createRadialGradient(W/2, H/2 + 80, 100, W/2, H/2 + 80, 800);
+    pitGrad.addColorStop(0, '#260B44');
+    pitGrad.addColorStop(0.7, '#120526');
+    pitGrad.addColorStop(1, '#06020E');
+    c.fillStyle = pitGrad;
+    c.fillRect(0, 0, W, H);
+
+    // Stone Cave Pillars
+    c.fillStyle = '#1D0838';
+    c.beginPath();
+    c.roundRect(80, 0, 160, H, [0, 0, 40, 0]);
+    c.roundRect(W - 240, 0, 160, H, [0, 0, 0, 40]);
+    c.fill();
+
+    // Opening at the top (Distant King's skylight)
+    const skyLight = c.createRadialGradient(W/2, 0, 10, W/2, 0, 320);
+    skyLight.addColorStop(0, 'rgba(255, 110, 0, 0.8)');
+    skyLight.addColorStop(0.5, 'rgba(247, 37, 133, 0.3)');
+    skyLight.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    c.fillStyle = skyLight;
+    c.fillRect(W/2 - 300, 0, 600, 320);
+
+    // Daniel Landing in Center
+    const dropP = prog(t, 3.6, 4.4);
+    const danY = lerp(-120, 680, eOutBack(dropP, 1.4));
+    drawDaniel(W/2, danY, 2.2, t, {
+      pose: 'normal',
+      facing: t > 5.5 ? 'right' : 'left'
+    });
+
+    // 3 Kurzgesagt Hungry Lions prowling
+    const lionPop = prog(t, 4.4, 5.2);
+    // Left Lion
+    drawLion(420, 680, 1.6, t, {
+      lookX: 0.8,
+      lookY: -0.2,
+      seed: 1
+    });
+    // Right Lion
+    drawLion(1500, 680, 1.6, t, {
+      flip: true,
+      lookX: -0.8,
+      lookY: -0.2,
+      seed: 2
+    });
+    // Back Big Lion stalking
+    drawLion(W/2 + 240, 520, 1.3, t, {
+      lookX: -0.5,
+      lookY: 0.5,
+      seed: 3
+    });
+
+    // Threat HUD Overlay
+    drawKurzCard(W/2, 180, 680, 110, 'STATUS: SURROUNDED BY APEX PREDATORS', 'DANGER INDEX: 999.9% [EXTREME]', {
+      p: prog(t, 4.5, 5.2),
+      tag: 'BIOLOGICAL HAZARD',
+      border: K.vividRed,
+      subCol: K.vividRed
+    });
+
+    c.restore();
+  }
+
+  // ══════════════════════════════════════════════════
+  // SCENE 3: 7.0s ~ 11.2s — ANGEL PROTOCOL: LIONS SHUT
+  // ══════════════════════════════════════════════════
+  if (t >= 7.0 && t < 11.4) {
+    const s3In = prog(t, 7.1, 7.8);
+    const s3Out = 1 - prog(t, 10.7, 11.3);
+    c.save();
+    c.globalAlpha = s3In * s3Out;
+
+    // Glowing Cave Sanctuary
+    const sancGrad = c.createRadialGradient(W/2, 480, 120, W/2, 480, 900);
+    sancGrad.addColorStop(0, '#0C3548');
+    sancGrad.addColorStop(0.6, '#140D36');
+    sancGrad.addColorStop(1, '#080318');
+    c.fillStyle = sancGrad;
+    c.fillRect(0, 0, W, H);
+
+    // Angel Descending from Top
+    const angelP = prog(t, 7.2, 8.4);
+    const angelY = lerp(-180, 260, eOutBack(angelP, 1.4));
+    drawAngel(W/2, angelY, 1.3, angelP, t);
+
+    // Daniel Standing Safe & Happy
+    drawDaniel(W/2 - 100, 720, 2.0, t, {
+      pose: 'happy',
+      facing: 'right'
+    });
+
+    // Lions Now Super Docile & Loafing (Cats sleeping!)
+    // Left Lion sleeping
+    drawLion(440, 730, 1.5, t, {
+      sleep: true,
+      seed: 10
+    });
+    // Right Lion sleeping next to Daniel
+    drawLion(W/2 + 220, 730, 1.4, t, {
+      sleep: true,
+      flip: true,
+      seed: 20
+    });
+    // Background Lion loafing happily
+    drawLion(1460, 730, 1.4, t, {
+      sleep: true,
+      seed: 30
+    });
+
+    // Infographic: Angel Protocol Active
+    drawKurzCard(W/2, 940, 760, 120, 'ANGEL PROTOCOL: LIONS.EXE SHUT DOWN', 'THREAT: 0% · CAT PURRING MODE ACTIVATED', {
+      p: prog(t, 8.2, 9.0),
+      tag: 'DIVINE INTERVENTION',
+      border: K.neonCyan,
+      subCol: K.neonYellow
+    });
+
+    c.restore();
+  }
+
+  // ══════════════════════════════════════════════════
+  // SCENE 4: 10.8s ~ 15.0s — MORNING & VICTORY TITLE
+  // ══════════════════════════════════════════════════
+  if (t >= 10.6) {
+    const s4In = prog(t, 10.8, 11.6);
+    c.save();
+    c.globalAlpha = s4In;
+
+    // Morning Sunrise Sky (Warm Vibrant Kurzgesagt Palette)
+    const sunSky = c.createLinearGradient(0, 0, 0, H);
+    sunSky.addColorStop(0.0, '#3A0CA3');
+    sunSky.addColorStop(0.4, '#7209B7');
+    sunSky.addColorStop(0.7, '#F72585');
+    sunSky.addColorStop(1.0, '#FFBE0B');
+    c.fillStyle = sunSky;
+    c.fillRect(0, 0, W, H);
+
+    // Giant Geometric Sun
+    const sunY = lerp(850, 480, eOutCubic(prog(t, 10.8, 12.8)));
+    circle(W/2, sunY, 320, K.neonYellow);
+    circle(W/2, sunY, 380, 'rgba(255, 230, 0, 0.22)');
+
+    // Ground Horizon Silhouette
+    c.fillStyle = '#1A0636';
+    c.beginPath();
+    c.roundRect(0, 780, W, 300, [60, 60, 0, 0]);
+    c.fill();
+
+    // Daniel Victorious on Top of Friendly Lion!
+    const victorP = prog(t, 11.4, 12.4);
+    const vY = lerp(900, 730, eOutBack(victorP, 1.8));
+    drawLion(W/2, vY + 40, 1.7, t, {
+      sleep: false,
+      lookX: 0,
+      lookY: -0.4
+    });
+    drawDaniel(W/2, vY - 70, 2.0, t, {
+      pose: 'happy',
+      facing: 'right'
+    });
+
+    // Kurzgesagt Punchy Typography Title
+    const titleP = prog(t, 11.8, 12.6);
+    if (titleP > 0) {
+      c.save();
+      const s = eOutBack(titleP, 1.6);
+      c.translate(W/2, 240);
+      c.scale(s, s);
+
+      c.font = "900 64px 'PB', sans-serif";
+      c.fillStyle = K.white;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.shadowColor = 'rgba(0, 0, 0, 0.6)';
+      c.shadowBlur = 18;
+      c.fillText('DANIEL IN THE LIONS\' DEN', 0, 0);
+
+      c.font = "700 32px 'P', sans-serif";
+      c.fillStyle = K.neonCyan;
+      c.fillText('"나의 하나님이 이미 그의 천사를 보내어 사자들의 입을 봉하셨으므로"', 0, 68);
+
+      c.font = "700 22px 'M', monospace";
+      c.fillStyle = K.neonYellow;
+      c.fillText('DAMAGE TAKEN: 0 HP · FAITH LEVEL: 100%', 0, 118);
+      c.restore();
+    }
+
+    // Series Red Seal (Kurzgesagt Hexagon Badge)
+    const stampP = prog(t, 13.0, 13.8);
+    if (stampP > 0) {
+      const ss = eOutBack(stampP, 2.0);
+      c.save();
+      c.translate(1700, 920);
+      c.scale(ss, ss);
+      // Red Hexagon
+      c.fillStyle = K.vividRed;
+      c.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const hx = Math.cos(a) * 60;
+        const hy = Math.sin(a) * 60;
+        if (i === 0) c.moveTo(hx, hy); else c.lineTo(hx, hy);
+      }
+      c.closePath();
+      c.fill();
+      c.strokeStyle = K.white;
+      c.lineWidth = 3;
+      c.stroke();
+
+      c.font = "900 22px 'PB'";
+      c.fillStyle = K.white;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('다니엘', 0, -8);
+      c.font = "700 14px 'M'";
+      c.fillText('DAN 6:22', 0, 16);
+      c.restore();
+    }
+
+    c.restore();
+  }
+
+  // Cinematic Vignette
+  const vig = c.createRadialGradient(W/2, H/2, H * 0.45, W/2, H/2, H * 0.95);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(5, 2, 12, 0.7)');
+  c.fillStyle = vig;
+  c.fillRect(0, 0, W, H);
+}
+
+// ── Interface
+window.renderAt = t => { frame(t); return true; };
+window.grab = (t, type = 'image/png', q) => { frame(t); return cv.toDataURL(type, q); };
+
+const CAPTURE = new URLSearchParams(location.search).has('capture');
+window.ready = document.fonts.ready.then(() => {
+  if (!CAPTURE) {
+    const st = performance.now();
+    const loop = n => {
+      frame(((n - st) / 1000) % DUR);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+  return true;
+});
+</script>
+</body>
+</html>

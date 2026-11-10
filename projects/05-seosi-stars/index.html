@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>윤동주 — 서시 (별자리 지도 스타일)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
+<style>
+@font-face { font-family: 'NP'; src: url(../../fonts/NanumPenScript-Regular.ttf); }
+@font-face { font-family: 'P'; src: url(../../fonts/Pretendard-Medium.otf); font-weight: 500; }
+@font-face { font-family: 'PB'; src: url(../../fonts/Pretendard-Bold.otf); font-weight: 700; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #05070D;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 100vw;
+  height: 56.25vw;
+  max-height: 100vh;
+  max-width: 177.78vh;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.9);
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W = 1920, H = 1080, DUR = 16.0;
+const cv = document.getElementById('c');
+cv.width = W; cv.height = H;
+const c = cv.getContext('2d');
+
+// ── Math & Helpers
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOutCubic = x => 1 - Math.pow(1 - x, 3);
+const eInCubic = x => x * x * x;
+const eInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eOutQuad = x => 1 - (1 - x) * (1 - x);
+const hr = i => {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// ── Fixed Star Field (Pre-generated)
+const STAR_COUNT = 320;
+const stars = [];
+for (let i = 0; i < STAR_COUNT; i++) {
+  stars.push({
+    x: hr(i * 1.7) * (W + 400) - 200,
+    y: hr(i * 3.1) * (H + 300) - 150,
+    r: 0.7 + hr(i * 5.3) * 1.8,
+    brightness: 0.35 + hr(i * 7.1) * 0.65,
+    freq: 1.2 + hr(i * 2.9) * 2.8,
+    phase: hr(i * 9.7) * Math.PI * 2,
+    gold: hr(i * 4.3) > 0.68
+  });
+}
+
+// ── Constellations coordinates
+// 1) 북두칠성 (Ursa Major Big Dipper)
+const DIPPER = [
+  [1280, 220], [1370, 260], [1460, 310], [1520, 390],
+  [1500, 480], [1620, 490], [1630, 410], [1520, 390]
+];
+// 2) 리라 (Lyra / 거문고) - "별을 노래하는 마음"
+const LYRA = [
+  [960, 230], [920, 330], [860, 410], [940, 480], [1010, 420], [920, 330]
+];
+const LYRA_VEGA = [960, 230];
+
+// ── Draw primitives
+function drawStar(x, y, r, alpha, gold = false) {
+  if (alpha <= 0) return;
+  c.save();
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.fillStyle = gold ? `rgba(248, 222, 142, ${alpha})` : `rgba(225, 235, 255, ${alpha})`;
+  c.fill();
+  if (r > 1.4 && alpha > 0.5) {
+    c.beginPath();
+    c.arc(x, y, r * 2.8, 0, Math.PI * 2);
+    c.fillStyle = gold ? `rgba(240, 200, 110, ${alpha * 0.22})` : `rgba(180, 210, 255, ${alpha * 0.18})`;
+    c.fill();
+  }
+  c.restore();
+}
+
+function drawCrossGlow(x, y, size, alpha, col = 'rgba(245, 225, 160,') {
+  if (alpha <= 0) return;
+  c.save();
+  c.strokeStyle = `${col}${alpha})`;
+  c.lineWidth = 1.2;
+  c.beginPath();
+  c.moveTo(x - size, y); c.lineTo(x + size, y);
+  c.moveTo(x, y - size); c.lineTo(x, y + size);
+  c.stroke();
+  c.beginPath();
+  c.arc(x, y, size * 0.45, 0, Math.PI * 2);
+  c.fillStyle = `${col}${alpha * 0.4})`;
+  c.fill();
+  c.restore();
+}
+
+function drawConstellation(points, p, glow = 0.5) {
+  if (p <= 0 || points.length < 2) return;
+  c.save();
+  let totLen = 0;
+  const lens = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const d = Math.hypot(points[i+1][0] - points[i][0], points[i+1][1] - points[i][1]);
+    lens.push(d);
+    totLen += d;
+  }
+  let target = totLen * clamp(p);
+
+  // Line
+  c.strokeStyle = `rgba(220, 195, 130, ${0.45 * clamp(p * 2)})`;
+  c.lineWidth = 1.4;
+  c.setLineDash([4, 4]);
+  c.beginPath();
+  c.moveTo(points[0][0], points[0][1]);
+  for (let i = 0; i < points.length - 1 && target > 0; i++) {
+    const d = lens[i];
+    if (target >= d) {
+      c.lineTo(points[i+1][0], points[i+1][1]);
+      target -= d;
+    } else {
+      const u = target / d;
+      c.lineTo(lerp(points[i][0], points[i+1][0], u), lerp(points[i][1], points[i+1][1], u));
+      target = 0;
+    }
+  }
+  c.stroke();
+  c.setLineDash([]);
+
+  // Star Nodes
+  const numRevealed = Math.min(points.length, Math.floor(p * (points.length + 0.5)));
+  for (let i = 0; i < numRevealed; i++) {
+    const pt = points[i];
+    drawStar(pt[0], pt[1], 3.2, 0.95, true);
+    drawCrossGlow(pt[0], pt[1], 12, 0.55);
+  }
+  c.restore();
+}
+
+// ── Red Stamp (낙관 도장)
+function drawStamp(x, y, size, p) {
+  if (p <= 0) return;
+  const s = eOutCubic(p);
+  c.save();
+  c.translate(x, y);
+  c.scale(s, s);
+  c.rotate(-0.02);
+
+  // Outer Box
+  c.strokeStyle = '#B8382C';
+  c.lineWidth = 3.5;
+  c.strokeRect(-size/2, -size/2, size, size);
+
+  // Inner Fill faint
+  c.fillStyle = 'rgba(184, 56, 44, 0.12)';
+  c.fillRect(-size/2, -size/2, size, size);
+
+  // Characters in Stamp "윤동주"
+  c.fillStyle = '#B8382C';
+  c.font = `bold ${Math.round(size * 0.42)}px 'Gowun Batang', 'Nanum Myeongjo', serif`;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText('尹', -size * 0.22, -size * 0.22);
+  c.fillText('東', size * 0.22, -size * 0.22);
+  c.fillText('柱', 0, size * 0.24);
+
+  // Weathering texture
+  c.fillStyle = '#070A12';
+  for (let i = 0; i < 18; i++) {
+    const rx = (hr(i * 3.3) - 0.5) * size * 0.9;
+    const ry = (hr(i * 7.7) - 0.5) * size * 0.9;
+    c.fillRect(rx, ry, 2, 2);
+  }
+  c.restore();
+}
+
+// ── Wind Streams (2막)
+function drawWindStreaks(t, alpha) {
+  if (alpha <= 0) return;
+  c.save();
+  c.globalAlpha = alpha;
+  const streaks = [
+    { y: 340, speed: 380, h: 45, len: 420 },
+    { y: 480, speed: 440, h: -55, len: 560 },
+    { y: 620, speed: 320, h: 60, len: 480 },
+    { y: 760, speed: 490, h: -40, len: 620 }
+  ];
+  streaks.forEach((st, idx) => {
+    const xBase = ((t * st.speed + idx * 450) % (W + 800)) - 400;
+    const grad = c.createLinearGradient(xBase, st.y, xBase + st.len, st.y + st.h);
+    grad.addColorStop(0, 'rgba(230, 210, 160, 0)');
+    grad.addColorStop(0.5, 'rgba(230, 210, 160, 0.4)');
+    grad.addColorStop(1, 'rgba(230, 210, 160, 0)');
+    c.strokeStyle = grad;
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(xBase, st.y);
+    c.quadraticCurveTo(xBase + st.len * 0.5, st.y + st.h * 1.3, xBase + st.len, st.y + st.h);
+    c.stroke();
+  });
+  c.restore();
+}
+
+// ── Tree Silhouette with trembling leaves
+function drawTreeBranch(t, p) {
+  if (p <= 0) return;
+  c.save();
+  c.globalAlpha = clamp(p);
+  c.strokeStyle = '#0E1726';
+  c.lineWidth = 14;
+  c.lineCap = 'round';
+
+  // Branch from bottom left
+  c.beginPath();
+  c.moveTo(-20, 880);
+  c.bezierCurveTo(180, 820, 320, 680, 480, 600);
+  c.stroke();
+
+  c.lineWidth = 8;
+  c.beginPath();
+  c.moveTo(340, 710);
+  c.bezierCurveTo(440, 660, 560, 650, 680, 640);
+  c.stroke();
+
+  c.lineWidth = 4;
+  c.beginPath();
+  c.moveTo(480, 600);
+  c.lineTo(600, 530);
+  c.stroke();
+
+  // Leaves swaying
+  const leafNodes = [
+    [480, 600], [530, 565], [600, 530], [560, 650], [680, 640], [620, 630]
+  ];
+  leafNodes.forEach(([lx, ly], idx) => {
+    const sway = Math.sin(t * 8 + idx * 2.3) * 0.28;
+    c.save();
+    c.translate(lx, ly);
+    c.rotate(-0.4 + sway);
+    c.beginPath();
+    c.ellipse(14, 0, 18, 7, 0, 0, Math.PI * 2);
+    c.fillStyle = '#111D30';
+    c.fill();
+    c.restore();
+  });
+  c.restore();
+}
+
+// ── The Walking Traveler (4막)
+function drawTraveler(t, p) {
+  if (p <= 0) return;
+  c.save();
+  c.globalAlpha = clamp(p);
+
+  // Gentle Hill ground
+  c.beginPath();
+  c.moveTo(0, 920);
+  c.bezierCurveTo(600, 880, 1200, 950, 1920, 870);
+  c.lineTo(1920, 1080);
+  c.lineTo(0, 1080);
+  c.closePath();
+  c.fillStyle = '#080C16';
+  c.fill();
+
+  // Road light streak
+  c.beginPath();
+  c.moveTo(400, 1080);
+  c.quadraticCurveTo(800, 980, 1180, 915);
+  c.lineWidth = 2;
+  c.strokeStyle = 'rgba(215, 190, 120, 0.22)';
+  c.stroke();
+
+  // Figure walking slowly
+  const walkProg = prog(t, 10.2, 13.5);
+  const px = lerp(820, 1080, walkProg);
+  const py = lerp(960, 920, walkProg);
+  const legCycle = Math.sin(t * 7);
+
+  c.save();
+  c.translate(px, py);
+  // Lantern faint glow
+  const lampGlow = c.createRadialGradient(16, -30, 0, 16, -30, 48);
+  lampGlow.addColorStop(0, 'rgba(255, 220, 130, 0.45)');
+  lampGlow.addColorStop(1, 'rgba(255, 220, 130, 0)');
+  c.fillStyle = lampGlow;
+  c.beginPath();
+  c.arc(16, -30, 48, 0, Math.PI * 2);
+  c.fill();
+
+  // Body silhouette
+  c.fillStyle = '#050810';
+  // Head
+  c.beginPath(); c.arc(0, -62, 8, 0, Math.PI * 2); c.fill();
+  // Coat/Robe
+  c.beginPath();
+  c.moveTo(-7, -54);
+  c.lineTo(8, -54);
+  c.lineTo(14, -18);
+  c.lineTo(-12, -18);
+  c.closePath();
+  c.fill();
+  // Legs
+  c.lineWidth = 4;
+  c.strokeStyle = '#050810';
+  c.beginPath();
+  c.moveTo(-4, -18); c.lineTo(-4 + legCycle * 5, 0);
+  c.moveTo(4, -18);  c.lineTo(4 - legCycle * 5, 0);
+  c.stroke();
+
+  // Lantern
+  c.fillStyle = '#FCE59F';
+  c.fillRect(14, -32, 5, 7);
+  c.strokeStyle = '#050810';
+  c.lineWidth = 1.2;
+  c.strokeRect(14, -32, 5, 7);
+  c.beginPath(); c.moveTo(4, -40); c.lineTo(16, -32); c.stroke();
+
+  c.restore();
+  c.restore();
+}
+
+// ── Shooting Star (5막 유성)
+function drawShootingStar(t) {
+  const p = prog(t, 13.6, 14.8);
+  if (p <= 0 || p >= 1) return;
+  const x0 = 1520, y0 = 120;
+  const x1 = 580, y1 = 640;
+  const curX = lerp(x0, x1, eOutCubic(p));
+  const curY = lerp(y0, y1, eOutCubic(p));
+  const tailX = lerp(x0, x1, Math.max(0, eOutCubic(p) - 0.22));
+  const tailY = lerp(y0, y1, Math.max(0, eOutCubic(p) - 0.22));
+
+  c.save();
+  const grad = c.createLinearGradient(tailX, tailY, curX, curY);
+  grad.addColorStop(0, 'rgba(255, 230, 160, 0)');
+  grad.addColorStop(0.7, 'rgba(255, 240, 200, 0.4)');
+  grad.addColorStop(1, 'rgba(255, 255, 255, 0.95)');
+  c.strokeStyle = grad;
+  c.lineWidth = 2.4;
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(tailX, tailY);
+  c.lineTo(curX, curY);
+  c.stroke();
+
+  drawCrossGlow(curX, curY, 14, 0.8, 'rgba(255, 245, 210,');
+  c.restore();
+}
+
+// ── Typography Reveal Helpers
+function drawPoemLine(text, x, y, p, opt = {}) {
+  if (p <= 0) return;
+  c.save();
+  const alpha = clamp(p);
+  const size = opt.size || 52;
+  const font = opt.font || "'Gowun Batang', 'Nanum Myeongjo', serif";
+  c.font = `${opt.weight || 400} ${size}px ${font}`;
+  c.letterSpacing = (opt.ls || 3) + 'px';
+  c.textAlign = opt.align || 'center';
+  c.textBaseline = 'middle';
+
+  // Soft starlight shadow
+  c.shadowColor = 'rgba(240, 215, 140, 0.35)';
+  c.shadowBlur = 12;
+
+  // Reveal letter by letter or line-fade
+  c.fillStyle = opt.gold ? `rgba(245, 225, 165, ${alpha})` : `rgba(240, 244, 252, ${alpha * 0.95})`;
+  c.fillText(text, x, y);
+  c.restore();
+}
+
+// ── Main Frame Render
+function frame(t) {
+  // Handcrafted 12Hz subtle jitter (Boil Effect)
+  const BF = Math.floor(t * 12);
+  const jx = (hr(BF * 17.1) - 0.5) * 1.2;
+  const jy = (hr(BF * 31.7) - 0.5) * 1.2;
+
+  // 1. Sky Gradient Background
+  const sky = c.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0.0, '#040711');
+  sky.addColorStop(0.4, '#090E1E');
+  sky.addColorStop(0.8, '#10182E');
+  sky.addColorStop(1.0, '#070C18');
+  c.fillStyle = sky;
+  c.fillRect(0, 0, W, H);
+
+  // 2. Cosmic Nebula & Milkyway Glow
+  c.save();
+  c.translate(jx, jy);
+  const nebula1 = c.createRadialGradient(W * 0.65, H * 0.35, 80, W * 0.65, H * 0.35, 700);
+  nebula1.addColorStop(0, 'rgba(75, 105, 160, 0.16)');
+  nebula1.addColorStop(0.5, 'rgba(45, 65, 110, 0.08)');
+  nebula1.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  c.fillStyle = nebula1;
+  c.fillRect(0, 0, W, H);
+
+  const nebula2 = c.createRadialGradient(W * 0.3, H * 0.55, 60, W * 0.3, H * 0.55, 600);
+  nebula2.addColorStop(0, 'rgba(120, 95, 150, 0.11)');
+  nebula2.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  c.fillStyle = nebula2;
+  c.fillRect(0, 0, W, H);
+  c.restore();
+
+  // 3. Static Starfield with breathing twinkles
+  stars.forEach((st) => {
+    const twinkle = 0.65 + 0.35 * Math.sin(t * st.freq + st.phase);
+    drawStar(st.x + jx * 0.5, st.y + jy * 0.5, st.r, st.brightness * twinkle, st.gold);
+  });
+
+  // 4. Subtle Compass / Celestial Coordinate Circles (별자리 지도 분위기)
+  c.save();
+  c.translate(W/2, H/2);
+  c.rotate(t * 0.015);
+  c.strokeStyle = 'rgba(180, 205, 240, 0.04)';
+  c.lineWidth = 1;
+  c.beginPath();
+  c.arc(0, 0, 480, 0, Math.PI * 2);
+  c.arc(0, 0, 680, 0, Math.PI * 2);
+  c.stroke();
+  c.restore();
+
+  // 5. Scene Management (Timeline 16s)
+  // Scene 1: 0.0s ~ 3.5s — 하늘을 우러러 (북두칠성)
+  if (t < 4.0) {
+    const s1In = prog(t, 0.4, 1.8);
+    const s1Out = 1 - prog(t, 3.2, 3.8);
+    const s1Alpha = s1In * s1Out;
+
+    // Header Title
+    drawPoemLine('序詩', W/2, 280, s1Alpha, { size: 36, gold: true, ls: 8, weight: 700 });
+    drawPoemLine('죽는 날까지 하늘을 우러러', W/2, 460, prog(t, 0.8, 2.0) * s1Out, { size: 54, ls: 4 });
+    drawPoemLine('한 점 부끄럼이 없기를,', W/2, 550, prog(t, 1.6, 2.6) * s1Out, { size: 54, ls: 4 });
+
+    // Constellation: Dipper
+    const dipP = prog(t, 1.0, 3.0);
+    drawConstellation(DIPPER, dipP);
+  }
+
+  // Scene 2: 3.5s ~ 7.0s — 잎새에 이는 바람 (바람 궤적 + 흔들리는 나뭇가지)
+  if (t >= 3.2 && t < 7.2) {
+    const s2In = prog(t, 3.5, 4.4);
+    const s2Out = 1 - prog(t, 6.4, 7.0);
+    const s2Alpha = s2In * s2Out;
+
+    drawTreeBranch(t, prog(t, 3.4, 4.2) * s2Out);
+    drawWindStreaks(t, s2Alpha * 0.85);
+
+    drawPoemLine('잎새에 이는 바람에도', W/2 + 80, 460, prog(t, 3.8, 4.8) * s2Out, { size: 54, ls: 4 });
+    drawPoemLine('나는 괴로워했다.', W/2 + 80, 550, prog(t, 4.6, 5.6) * s2Out, { size: 54, ls: 4 });
+  }
+
+  // Scene 3: 6.8s ~ 10.5s — 별을 노래하는 마음 (리라자리 + 베가성)
+  if (t >= 6.6 && t < 10.8) {
+    const s3In = prog(t, 6.9, 7.8);
+    const s3Out = 1 - prog(t, 9.9, 10.6);
+    const s3Alpha = s3In * s3Out;
+
+    const lyraP = prog(t, 7.2, 9.4);
+    drawConstellation(LYRA, lyraP);
+    if (lyraP > 0.1) {
+      drawStar(LYRA_VEGA[0], LYRA_VEGA[1], 4.2, 1.0, true);
+      drawCrossGlow(LYRA_VEGA[0], LYRA_VEGA[1], 24, 0.85, 'rgba(250, 220, 140,');
+    }
+
+    drawPoemLine('별을 노래하는 마음으로', W/2, 630, prog(t, 7.2, 8.2) * s3Out, { size: 54, ls: 4 });
+    drawPoemLine('모든 죽어가는 것을 사랑해야지', W/2, 720, prog(t, 8.0, 9.0) * s3Out, { size: 54, ls: 4, gold: true });
+  }
+
+  // Scene 4: 10.2s ~ 13.2s — 주어진 길 (지평선 언덕 + 나그네 실루엣)
+  if (t >= 10.0 && t < 13.5) {
+    const s4In = prog(t, 10.3, 11.2);
+    const s4Out = 1 - prog(t, 12.8, 13.4);
+    const s4Alpha = s4In * s4Out;
+
+    drawTraveler(t, s4Alpha);
+
+    drawPoemLine('그리고 나한테 주어진 길을', W/2, 380, prog(t, 10.5, 11.5) * s4Out, { size: 54, ls: 4 });
+    drawPoemLine('걸어가야겠다.', W/2, 470, prog(t, 11.3, 12.3) * s4Out, { size: 54, ls: 4 });
+  }
+
+  // Scene 5: 12.8s ~ 16.0s — 별이 바람에 스치운다 & 낙관 (클라이맥스)
+  if (t >= 12.6) {
+    const s5In = prog(t, 12.8, 13.8);
+    const s5Alpha = s5In;
+
+    drawShootingStar(t);
+
+    drawPoemLine('오늘 밤에도 별이 바람에 스치운다.', W/2, 500, s5Alpha, {
+      size: 58,
+      ls: 6,
+      weight: 700,
+      gold: true
+    });
+
+    drawPoemLine('1941. 11. 20.', W/2, 580, prog(t, 13.8, 14.8), {
+      size: 26,
+      ls: 4,
+      font: "'P', sans-serif"
+    });
+
+    // Red Seal Stamp
+    drawStamp(1640, 880, 110, prog(t, 14.3, 14.9));
+    drawPoemLine('윤동주 · 尹東柱', 1640, 965, prog(t, 14.5, 15.2), {
+      size: 24,
+      ls: 3,
+      font: "'Gowun Batang', serif"
+    });
+  }
+
+  // Edge Vignette
+  const vig = c.createRadialGradient(W/2, H/2, H * 0.45, W/2, H/2, H * 0.95);
+  vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vig.addColorStop(1, 'rgba(3, 5, 10, 0.6)');
+  c.fillStyle = vig;
+  c.fillRect(0, 0, W, H);
+
+  // Fade In / Out
+  const fadeIn = 1 - prog(t, 0, 0.6);
+  if (fadeIn > 0) {
+    c.fillStyle = `rgba(5, 7, 13, ${fadeIn})`;
+    c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── Export Interface
+window.renderAt = t => { frame(t); return true; };
+window.grab = (t, type = 'image/png', q) => { frame(t); return cv.toDataURL(type, q); };
+
+const CAPTURE = new URLSearchParams(location.search).has('capture');
+window.ready = document.fonts.ready.then(() => {
+  if (!CAPTURE) {
+    const st = performance.now();
+    const loop = n => {
+      frame(((n - st) / 1000) % DUR);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+  return true;
+});
+</script>
+</body>
+</html>

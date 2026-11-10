@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>윤동주 — 서시 (J. 자수 · 조각보 스타일)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
+<style>
+@font-face { font-family: 'NP'; src: url(../../fonts/NanumPenScript-Regular.ttf); }
+@font-face { font-family: 'P'; src: url(../../fonts/Pretendard-Medium.otf); font-weight: 500; }
+@font-face { font-family: 'PB'; src: url(../../fonts/Pretendard-Bold.otf); font-weight: 700; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #181410;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 100vw;
+  height: 56.25vw;
+  max-height: 100vh;
+  max-width: 177.78vh;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.85);
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W = 1920, H = 1080, DUR = 16.0;
+const cv = document.getElementById('c');
+cv.width = W; cv.height = H;
+const c = cv.getContext('2d');
+
+// ── Math & Helpers
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOutCubic = x => 1 - Math.pow(1 - x, 3);
+const eInCubic = x => x * x * x;
+const eInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eOutBack = (x, s = 1.7) => x <= 0 ? 0 : 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+const hr = i => {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// ── Fabric Texture Canvas (Linen / Ramie grain)
+const TW = 512, TH = 512;
+const fabricCanvas = document.createElement('canvas');
+fabricCanvas.width = TW; fabricCanvas.height = TH;
+(function() {
+  const fc = fabricCanvas.getContext('2d');
+  fc.fillStyle = '#EBE3D3';
+  fc.fillRect(0, 0, TW, TH);
+  // Weft & Warp threads (씨실과 날실 직조감)
+  for (let y = 0; y < TH; y += 3) {
+    fc.fillStyle = (y % 6 === 0) ? 'rgba(80, 60, 40, 0.04)' : 'rgba(255, 255, 255, 0.07)';
+    fc.fillRect(0, y, TW, 1.5);
+  }
+  for (let x = 0; x < TW; x += 3) {
+    fc.fillStyle = (x % 6 === 0) ? 'rgba(70, 50, 30, 0.04)' : 'rgba(255, 255, 255, 0.07)';
+    fc.fillRect(x, 0, 1.5, TH);
+  }
+  // Fiber flecks
+  for (let i = 0; i < 1800; i++) {
+    const fx = hr(i * 3.1) * TW, fy = hr(i * 7.7) * TH;
+    fc.fillStyle = hr(i * 2.3) > 0.5 ? 'rgba(60, 40, 20, 0.08)' : 'rgba(255, 255, 255, 0.12)';
+    fc.fillRect(fx, fy, 1.2 + hr(i) * 2, 1);
+  }
+})();
+const fabricPattern = c.createPattern(fabricCanvas, 'repeat');
+
+// ── Jogakbo Grid Definition (Total Size: 2400 x 1400 in World Space)
+const PATCHES = [
+  // 0: 상단 좌 (하늘을 우러러) — 담연옥색
+  { id: 0, x: 80,  y: 80,  w: 920,  h: 580, bg: '#CAD8D8', label: '하늘' },
+  // 1: 상단 우 (잎새와 바람) — 쑥빛/연풀색
+  { id: 1, x: 1000, y: 80,  w: 1320, h: 580, bg: '#CCD6BE', label: '바람' },
+  // 2: 하단 좌 (별을 노래하는 마음) — 깊은 쪽빛
+  { id: 2, x: 80,  y: 660, w: 1040, h: 660, bg: '#2B3D54', label: '별', dark: true },
+  // 3: 하단 중 (주어진 길) — 소색 삼베
+  { id: 3, x: 1120, y: 660, w: 760,  h: 660, bg: '#E2D9C8', label: '길' },
+  // 4: 하단 우 (별이 스치운다 & 낙관) — 연회백색
+  { id: 4, x: 1880, y: 660, w: 440,  h: 660, bg: '#D8D0C2', label: '낙관' }
+];
+
+// ── Stitch Primitives
+// 한 땀 한 땀 자수 스티치 라인
+function drawStitchPath(pts, p, opt = {}) {
+  if (p <= 0 || pts.length < 2) return;
+  c.save();
+  const stitchLen = opt.stitchLen || 14;
+  const gap = opt.gap || 6;
+  const w = opt.w || 3.5;
+  const col = opt.col || '#231F1C';
+  const shadowCol = opt.shadow || 'rgba(30, 20, 10, 0.28)';
+
+  // Calculate total path distance
+  let totDist = 0;
+  const dists = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = Math.hypot(pts[i+1][0] - pts[i][0], pts[i+1][1] - pts[i][1]);
+    dists.push(d);
+    totDist += d;
+  }
+  const maxD = totDist * clamp(p);
+
+  // Draw thread shadow
+  c.strokeStyle = shadowCol;
+  c.lineWidth = w;
+  c.setLineDash([stitchLen, gap]);
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.beginPath();
+  c.moveTo(pts[0][0] + 1.2, pts[0][1] + 1.6);
+  let curD = maxD;
+  for (let i = 0; i < pts.length - 1 && curD > 0; i++) {
+    const seg = dists[i];
+    if (curD >= seg) {
+      c.lineTo(pts[i+1][0] + 1.2, pts[i+1][1] + 1.6);
+      curD -= seg;
+    } else {
+      const u = curD / seg;
+      c.lineTo(lerp(pts[i][0], pts[i+1][0], u) + 1.2, lerp(pts[i][1], pts[i+1][1], u) + 1.6);
+      curD = 0;
+    }
+  }
+  c.stroke();
+
+  // Draw actual silk thread
+  c.strokeStyle = col;
+  c.beginPath();
+  c.moveTo(pts[0][0], pts[0][1]);
+  curD = maxD;
+  for (let i = 0; i < pts.length - 1 && curD > 0; i++) {
+    const seg = dists[i];
+    if (curD >= seg) {
+      c.lineTo(pts[i+1][0], pts[i+1][1]);
+      curD -= seg;
+    } else {
+      const u = curD / seg;
+      c.lineTo(lerp(pts[i][0], pts[i+1][0], u), lerp(pts[i][1], pts[i+1][1], u));
+      curD = 0;
+    }
+  }
+  c.stroke();
+  c.setLineDash([]);
+  c.restore();
+}
+
+// Stitch Text (자수 글씨)
+function drawStitchText(text, x, y, p, opt = {}) {
+  if (p <= 0) return;
+  c.save();
+  const size = opt.size || 52;
+  const col = opt.col || '#231E19';
+  const font = opt.font || "'Gowun Batang', 'Nanum Myeongjo', serif";
+  c.font = `bold ${size}px ${font}`;
+  c.letterSpacing = (opt.ls || 3) + 'px';
+  c.textAlign = opt.align || 'center';
+  c.textBaseline = 'middle';
+
+  const chars = [...text];
+  const totW = c.measureText(text).width;
+  let curX = opt.align === 'center' ? x - totW / 2 : x;
+
+  chars.forEach((ch, idx) => {
+    const cw = c.measureText(ch).width;
+    const charProg = prog(p, idx / chars.length, (idx + 1) / chars.length);
+    if (charProg > 0) {
+      const reveal = eOutBack(charProg, 1.4);
+      c.save();
+      c.translate(curX + cw / 2, y);
+      c.scale(reveal, reveal);
+
+      // Thread texture for text (dotted outline + solid inside)
+      c.fillStyle = 'rgba(20, 15, 10, 0.22)';
+      c.fillText(ch, 1.4, 1.8); // Thread shadow
+
+      c.fillStyle = col;
+      c.fillText(ch, 0, 0);
+
+      // Thread stitch accent
+      c.lineWidth = 1.2;
+      c.strokeStyle = opt.stitchCol || 'rgba(255, 255, 255, 0.35)';
+      c.setLineDash([4, 4]);
+      c.strokeText(ch, 0, 0);
+
+      c.restore();
+    }
+    curX += cw + (opt.ls || 3);
+  });
+  c.restore();
+}
+
+// ── Embroidered Cross Star (자수 십자별)
+function drawEmbroideredStar(cx, cy, r, p, col = '#FBE296') {
+  if (p <= 0) return;
+  const s = eOutBack(p, 1.8);
+  c.save();
+  c.translate(cx, cy);
+  c.scale(s, s);
+
+  // Shadow
+  c.strokeStyle = 'rgba(10, 15, 25, 0.4)';
+  c.lineWidth = 3;
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(-r + 1, 1); c.lineTo(r + 1, 1);
+  c.moveTo(1, -r + 1); c.lineTo(1, r + 1);
+  c.stroke();
+
+  // Silk Stitch
+  c.strokeStyle = col;
+  c.beginPath();
+  c.moveTo(-r, 0); c.lineTo(r, 0);
+  c.moveTo(0, -r); c.lineTo(0, r);
+  // Diagonal cross stitch
+  const dr = r * 0.65;
+  c.moveTo(-dr, -dr); c.lineTo(dr, dr);
+  c.moveTo(-dr, dr); c.lineTo(dr, -dr);
+  c.stroke();
+
+  // French knot in center
+  c.fillStyle = '#FFF8E0';
+  c.beginPath();
+  c.arc(0, 0, 3.2, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+}
+
+// ── Needle Graphic (수놓는 은바늘)
+function drawNeedle(x, y, ang, alpha = 1) {
+  if (alpha <= 0) return;
+  c.save();
+  c.globalAlpha = clamp(alpha);
+  c.translate(x, y);
+  c.rotate(ang);
+
+  // Needle Shadow
+  c.fillStyle = 'rgba(40, 30, 20, 0.25)';
+  c.beginPath();
+  c.moveTo(2, 2); c.lineTo(2, 48); c.lineTo(5, 52); c.lineTo(2, 54);
+  c.fill();
+
+  // Silver Needle Body
+  const nGrad = c.createLinearGradient(-3, 0, 3, 0);
+  nGrad.addColorStop(0, '#B0B4BC');
+  nGrad.addColorStop(0.5, '#FFFFFF');
+  nGrad.addColorStop(1, '#8A8E96');
+  c.fillStyle = nGrad;
+  c.beginPath();
+  c.moveTo(0, 0);       // Needle tip
+  c.lineTo(-2.5, 42);
+  c.lineTo(-2.5, 58);
+  c.lineTo(0, 64);      // Eye end
+  c.lineTo(2.5, 58);
+  c.lineTo(2.5, 42);
+  c.closePath();
+  c.fill();
+
+  // Needle Eye Hole
+  c.fillStyle = '#222';
+  c.beginPath();
+  c.ellipse(0, 56, 1, 4, 0, 0, Math.PI * 2);
+  c.fill();
+
+  // Trailing Red/Gold Thread from Eye
+  c.strokeStyle = '#D44436';
+  c.lineWidth = 2.2;
+  c.beginPath();
+  c.moveTo(0, 56);
+  c.bezierCurveTo(8, 70, 24, 75, 32, 95);
+  c.stroke();
+
+  c.restore();
+}
+
+// ── Red Embroidery Seal Stamp (붉은 비단실 자수 낙관)
+function drawStitchedStamp(x, y, size, p) {
+  if (p <= 0) return;
+  const s = eOutBack(p, 1.5);
+  c.save();
+  c.translate(x, y);
+  c.scale(s, s);
+
+  // Red Silk Fabric Base
+  c.fillStyle = '#A83226';
+  c.fillRect(-size/2, -size/2, size, size);
+
+  // Outer Border Stitching (Double Sashiko Stitch)
+  c.strokeStyle = '#D94B3C';
+  c.lineWidth = 3;
+  c.setLineDash([8, 4]);
+  c.strokeRect(-size/2 + 5, -size/2 + 5, size - 10, size - 10);
+  c.setLineDash([]);
+
+  // Stitched Characters "尹東柱" in White/Gold Thread
+  c.font = `bold ${Math.round(size * 0.38)}px 'Gowun Batang', serif`;
+  c.fillStyle = '#FDF6E2';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText('尹', -size * 0.22, -size * 0.22);
+  c.fillText('東', size * 0.22, -size * 0.22);
+  c.fillText('柱', 0, size * 0.24);
+
+  // Cross stitch accents around the corners
+  [[-size/2+12, -size/2+12], [size/2-12, -size/2+12], [-size/2+12, size/2-12], [size/2-12, size/2-12]].forEach(([cx, cy]) => {
+    drawEmbroideredStar(cx, cy, 6, 1, '#FFF5D0');
+  });
+
+  c.restore();
+}
+
+// ── Draw Patchworks (조각보 전체 바닥)
+function drawPatchworkQuilt(t) {
+  // 1. Draw Each Fabric Piece
+  PATCHES.forEach(p => {
+    c.save();
+    // Base Color
+    c.fillStyle = p.bg;
+    c.fillRect(p.x, p.y, p.w, p.h);
+
+    // Multiply Fabric Texture Grain
+    c.globalCompositeOperation = 'multiply';
+    c.fillStyle = fabricPattern;
+    c.fillRect(p.x, p.y, p.w, p.h);
+    c.restore();
+
+    // Subtle edge fraying / inner shadow
+    c.save();
+    c.strokeStyle = 'rgba(40, 30, 20, 0.12)';
+    c.lineWidth = 4;
+    c.strokeRect(p.x + 2, p.y + 2, p.w - 4, p.h - 4);
+    c.restore();
+  });
+
+  // 2. 쌈솔 바느질선 (조각과 조각의 결합 상침 스티치)
+  c.save();
+  c.strokeStyle = '#382D22';
+  c.lineWidth = 2.8;
+  c.setLineDash([8, 6]);
+
+  // Horizontal seam
+  c.beginPath();
+  c.moveTo(80, 660); c.lineTo(2320, 660);
+  c.stroke();
+
+  // Vertical seams
+  c.beginPath();
+  c.moveTo(1000, 80); c.lineTo(1000, 660);
+  c.moveTo(1120, 660); c.lineTo(1120, 1320);
+  c.moveTo(1880, 660); c.lineTo(1880, 1320);
+  c.stroke();
+
+  // Seam intersection knots
+  [[1000, 660], [1120, 660], [1880, 660]].forEach(([kx, ky]) => {
+    drawEmbroideredStar(kx, ky, 8, 1, '#5C4A3A');
+  });
+
+  c.setLineDash([]);
+  c.restore();
+}
+
+// ── Camera Coordinates for Each Scene
+// t: [time, targetX, targetY, zoom]
+const CAM_KEYS = [
+  [0.0,  540, 370, 1.85],   // Patch 0: 하늘
+  [3.2,  540, 370, 1.85],
+  [4.0,  1660, 370, 1.75],  // Patch 1: 바람
+  [6.8,  1660, 370, 1.75],
+  [7.6,  600, 990, 1.7],    // Patch 2: 별 (쪽빛)
+  [10.2, 600, 990, 1.7],
+  [10.8, 1500, 990, 1.75],  // Patch 3: 길
+  [12.6, 1500, 990, 1.75],
+  [13.8, 1200, 700, 0.72],  // Zoom Out: 전체 조각보 완성 샷!
+  [16.0, 1200, 700, 0.71]
+];
+
+function getCam(t) {
+  for (let i = 0; i < CAM_KEYS.length - 1; i++) {
+    const a = CAM_KEYS[i], b = CAM_KEYS[i+1];
+    if (t <= b[0]) {
+      const u = eInOutCubic(prog(t, a[0], b[0]));
+      return {
+        x: lerp(a[1], b[1], u),
+        y: lerp(a[2], b[2], u),
+        z: lerp(a[3], b[3], u)
+      };
+    }
+  }
+  const l = CAM_KEYS[CAM_KEYS.length - 1];
+  return { x: l[1], y: l[2], z: l[3] };
+}
+
+// ── Main Frame Render
+function frame(t) {
+  // Handcrafted 12Hz subtle jitter (Boil Effect)
+  const BF = Math.floor(t * 12);
+  const jx = (hr(BF * 13.7) - 0.5) * 1.0;
+  const jy = (hr(BF * 29.3) - 0.5) * 1.0;
+
+  // Background Table surface (규방 나무 반짇고리 테이블)
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#181410';
+  c.fillRect(0, 0, W, H);
+
+  // Camera Transform
+  const k = getCam(t);
+  c.save();
+  c.translate(W / 2, H / 2);
+  c.scale(k.z, k.z);
+  c.translate(-k.x + jx, -k.y + jy);
+
+  // 1. Draw Quilt Base
+  drawPatchworkQuilt(t);
+
+  // 2. Patch 0 Contents: 하늘을 우러러 (0.0s ~ 3.5s)
+  const p0 = PATCHES[0];
+  // Sun circle stitched with orange silk
+  const sunP = prog(t, 0.4, 2.0);
+  if (sunP > 0) {
+    c.save();
+    c.strokeStyle = '#D96838';
+    c.lineWidth = 3.5;
+    c.setLineDash([10, 6]);
+    c.beginPath();
+    c.arc(p0.x + 220, p0.y + 220, 80 * clamp(sunP * 1.2), 0, Math.PI * 2);
+    c.stroke();
+    c.restore();
+  }
+  // Clouds stitches
+  const cloud1 = [
+    [p0.x + 120, p0.y + 360], [p0.x + 240, p0.y + 320], [p0.x + 360, p0.y + 370], [p0.x + 440, p0.y + 350]
+  ];
+  drawStitchPath(cloud1, prog(t, 0.8, 2.4), { col: '#5A7276', w: 3 });
+
+  drawStitchText('죽는 날까지 하늘을 우러러', p0.x + 520, p0.y + 230, prog(t, 0.6, 2.2), {
+    size: 44, col: '#233238', stitchCol: 'rgba(255,255,255,0.45)'
+  });
+  drawStitchText('한 점 부끄럼이 없기를,', p0.x + 520, p0.y + 320, prog(t, 1.4, 2.8), {
+    size: 44, col: '#233238', stitchCol: 'rgba(255,255,255,0.45)'
+  });
+
+  // 3. Patch 1 Contents: 잎새와 바람 (3.5s ~ 7.0s)
+  const p1 = PATCHES[1];
+  const stem = [
+    [p1.x + 120, p1.y + 480], [p1.x + 380, p1.y + 340], [p1.x + 640, p1.y + 260], [p1.x + 880, p1.y + 210]
+  ];
+  drawStitchPath(stem, prog(t, 3.6, 5.2), { col: '#465636', w: 4.5 });
+
+  // Embroidered Leaf motifs
+  const leafNodes = [
+    [p1.x + 300, p1.y + 380], [p1.x + 480, p1.y + 310], [p1.x + 640, p1.y + 260], [p1.x + 780, p1.y + 230]
+  ];
+  leafNodes.forEach(([lx, ly], idx) => {
+    const lp = prog(t, 4.0 + idx * 0.25, 4.8 + idx * 0.25);
+    if (lp > 0) {
+      c.save();
+      c.translate(lx, ly);
+      c.rotate(-0.35 + Math.sin(t * 6 + idx) * 0.08);
+      c.strokeStyle = '#324026';
+      c.lineWidth = 2.8;
+      c.setLineDash([6, 4]);
+      c.beginPath();
+      c.ellipse(0, 0, 36 * lp, 16 * lp, 0, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    }
+  });
+
+  // Wind thread waves (바람결 자수)
+  const wind1 = [
+    [p1.x + 200, p1.y + 140], [p1.x + 520, p1.y + 110], [p1.x + 840, p1.y + 150], [p1.x + 1180, p1.y + 120]
+  ];
+  drawStitchPath(wind1, prog(t, 4.2, 5.8), { col: '#788A64', w: 2.5, stitchLen: 12, gap: 8 });
+
+  drawStitchText('잎새에 이는 바람에도', p1.x + 680, p1.y + 390, prog(t, 4.2, 5.6), {
+    size: 46, col: '#222C1A'
+  });
+  drawStitchText('나는 괴로워했다.', p1.x + 680, p1.y + 475, prog(t, 5.0, 6.2), {
+    size: 46, col: '#222C1A'
+  });
+
+  // 4. Patch 2 Contents: 별을 노래하는 마음 (7.0s ~ 10.5s)
+  const p2 = PATCHES[2];
+  // Yellow/Gold Stars on Deep Indigo Cloth
+  const starCoords = [
+    [p2.x + 180, p2.y + 160, 22], [p2.x + 360, p2.y + 120, 16], [p2.x + 480, p2.y + 200, 26],
+    [p2.x + 720, p2.y + 140, 18], [p2.x + 860, p2.y + 220, 24], [p2.x + 280, p2.y + 290, 15]
+  ];
+  starCoords.forEach(([sx, sy, sr], idx) => {
+    drawEmbroideredStar(sx, sy, sr, prog(t, 7.2 + idx * 0.22, 7.8 + idx * 0.22), '#FCE082');
+  });
+
+  // Stitched Constellation lines between stars
+  const starPath = [
+    [p2.x + 180, p2.y + 160], [p2.x + 360, p2.y + 120], [p2.x + 480, p2.y + 200], [p2.x + 720, p2.y + 140]
+  ];
+  drawStitchPath(starPath, prog(t, 7.8, 9.2), { col: '#D4B85E', w: 2, stitchLen: 6, gap: 5 });
+
+  drawStitchText('별을 노래하는 마음으로', p2.x + 520, p2.y + 410, prog(t, 7.6, 8.9), {
+    size: 46, col: '#F4ECE1', stitchCol: 'rgba(255,225,120,0.5)'
+  });
+  drawStitchText('모든 죽어가는 것을 사랑해야지', p2.x + 520, p2.y + 500, prog(t, 8.4, 9.8), {
+    size: 46, col: '#FCE082', stitchCol: 'rgba(255,255,255,0.6)'
+  });
+
+  // 5. Patch 3 Contents: 주어진 길 (10.2s ~ 13.0s)
+  const p3 = PATCHES[3];
+  // Winding Path Thread (구불구불한 오솔길)
+  const road = [
+    [p3.x + 100, p3.y + 560], [p3.x + 280, p3.y + 440], [p3.x + 220, p3.y + 320],
+    [p3.x + 460, p3.y + 240], [p3.x + 620, p3.y + 160]
+  ];
+  drawStitchPath(road, prog(t, 10.4, 12.0), { col: '#A84838', w: 4 });
+
+  drawStitchText('그리고 나한테 주어진 길을', p3.x + 380, p3.y + 360, prog(t, 10.6, 11.9), {
+    size: 42, col: '#32281E'
+  });
+  drawStitchText('걸어가야겠다.', p3.x + 380, p3.y + 445, prog(t, 11.4, 12.6), {
+    size: 42, col: '#32281E'
+  });
+
+  // 6. Patch 4 Contents: 결어 & 붉은 비단실 자수 낙관 (12.5s ~ 16.0s)
+  const p4 = PATCHES[4];
+  // Title & Date on Quilt
+  drawStitchText('序詩', p4.x + 220, p4.y + 140, prog(t, 13.0, 14.0), {
+    size: 38, col: '#2B231B'
+  });
+  drawStitchText('오늘 밤에도 별이', p4.x + 220, p4.y + 240, prog(t, 13.2, 14.4), {
+    size: 32, col: '#33281E'
+  });
+  drawStitchText('바람에 스치운다.', p4.x + 220, p4.y + 295, prog(t, 13.6, 14.8), {
+    size: 32, col: '#33281E'
+  });
+
+  // Red Embroidered Stamp (도장 낙관)
+  drawStitchedStamp(p4.x + 220, p4.y + 460, 140, prog(t, 14.0, 14.8));
+
+  // Active Needle Graphic during stitching
+  if (t < 3.2) {
+    const np = prog(t, 1.4, 2.8);
+    drawNeedle(p0.x + 320 + np * 380, p0.y + 330, -0.6, (1 - prog(t, 2.9, 3.2)));
+  } else if (t >= 3.6 && t < 6.8) {
+    const np = prog(t, 4.2, 5.8);
+    drawNeedle(p1.x + 400 + np * 400, p1.y + 400, -0.5, (1 - prog(t, 6.2, 6.6)));
+  } else if (t >= 7.2 && t < 10.0) {
+    const np = prog(t, 7.8, 9.2);
+    drawNeedle(p2.x + 300 + np * 400, p2.y + 430, -0.7, (1 - prog(t, 9.5, 9.9)));
+  }
+
+  c.restore();
+
+  // Edge Vignette
+  const vig = c.createRadialGradient(W/2, H/2, H * 0.45, W/2, H/2, H * 0.98);
+  vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vig.addColorStop(1, 'rgba(15, 10, 5, 0.75)');
+  c.fillStyle = vig;
+  c.fillRect(0, 0, W, H);
+
+  // Fade In
+  const fadeIn = 1 - prog(t, 0, 0.6);
+  if (fadeIn > 0) {
+    c.fillStyle = `rgba(18, 14, 10, ${fadeIn})`;
+    c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── Export Interface
+window.renderAt = t => { frame(t); return true; };
+window.grab = (t, type = 'image/png', q) => { frame(t); return cv.toDataURL(type, q); };
+
+const CAPTURE = new URLSearchParams(location.search).has('capture');
+window.ready = document.fonts.ready.then(() => {
+  if (!CAPTURE) {
+    const st = performance.now();
+    const loop = n => {
+      frame(((n - st) / 1000) % DUR);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+  return true;
+});
+</script>
+</body>
+</html>
