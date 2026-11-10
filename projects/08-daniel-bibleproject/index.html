@@ -279,38 +279,281 @@ function arrow(pts, p, col = RED, w = 10) {
   }
 }
 
-// ───────── BibleProject Characters (Daniel, Lions, Darius)
-function drawDanielCharacter(p, pose = 'pray') {
-  // Hebrew Sage Robe
-  const robe = [[-30, -180], [-45, -80], [-55, 0], [55, 0], [45, -80], [30, -180]];
-  fillP(robe, TONE2, prog(p, 0.2, 0.5) * 0.85);
-  ink(robe, prog(p, 0, 0.4), { w: 5.5 });
-  // Robe sash (Red Accent)
-  ink(Lp(-42, -90, 42, -90, 6), prog(p, 0.3, 0.5), { w: 7, col: RED });
+// ───────── BibleProject Realistic Characters (Daniel, Lions, Darius)
+function drawDanielRealistic(p, pose = 'pray') {
+  if (p <= 0) return;
+  c.save();
 
-  // Head & Beard
-  fillP(Ap(0, -210, 26, 0, Math.PI * 2, 24), PAPERL, prog(p, 0.2, 0.45));
-  ink(Ap(0, -210, 26, 0, Math.PI * 2, 24), prog(p, 0.2, 0.45), { w: 5 });
-  // Long Gray Beard
-  const beard = [[-24, -200], [-18, -140], [0, -120], [18, -140], [24, -200]];
-  fillP(beard, INK, prog(p, 0.35, 0.6));
-  ink(beard, prog(p, 0.35, 0.6), { w: 4 });
-
-  // Eyes & Headband
-  if (prog(p, 0.5, 0.7) > 0) {
-    dot(-8, -215, 3.2); dot(8, -215, 3.2);
-    ink(Lp(-26, -225, 26, -225, 4), 1, { w: 4, col: INK });
-  }
-
-  // Hands in Prayer
   if (pose === 'pray') {
-    const hands = [[-12, -140], [0, -165], [12, -140]];
-    ink(hands, prog(p, 0.5, 0.8), { w: 6 });
-  } else if (pose === 'safe') {
-    // Open praise arms
-    ink([[-30, -150], [-60, -180], [-75, -220]], prog(p, 0.5, 0.8), { w: 6 });
-    ink([[30, -150], [60, -180], [75, -220]], prog(p, 0.5, 0.8), { w: 6 });
+    // ── KNEELING PRAYER POSE (무릎 꿇은 자세)
+    // 1. Lower Robe & Folded Knees (접힌 무릎과 바닥에 퍼진 로브)
+    const lowerBody = cat(
+      Lp(-50, 0, 70, 0, 8),          // Ground contact
+      Cp([70, 0], [60, -45], [40, -80], [20, -110], 12),  // Thigh & hip
+      Lp([20, -110], [-45, -100], 6), // Waist line
+      Cp([-45, -100], [-70, -70], [-80, -35], [-50, 0], 14) // Calf & heel
+    );
+    fillP(lowerBody, TONE2, prog(p, 0.1, 0.45) * 0.9);
+    ink(lowerBody, prog(p, 0, 0.4), { w: 5.5 });
+    hatch(lowerBody, -80, -110, 70, 0, 18, prog(p, 0.3, 0.6), { w: 2.2, col: TONE });
+
+    // Feet & Sandal detail
+    ink(Lp(-65, -15, -78, -5, 3), prog(p, 0.2, 0.5), { w: 4, col: INK });
+
+    // 2. Torso & Sash (상체와 허리띠)
+    const torso = cat(
+      Lp(-45, -100, 20, -110, 6),
+      Cp([20, -110], [28, -150], [25, -190], [10, -210], 12),  // Chest & front
+      Lp([10, -210], [-35, -205], 6),                           // Neckline
+      Cp([-35, -205], [-55, -165], [-58, -130], [-45, -100], 12) // Slanted back
+    );
+    fillP(torso, TONE2, prog(p, 0.2, 0.5) * 0.95);
+    ink(torso, prog(p, 0.15, 0.5), { w: 5 });
+
+    // Red Sash (허리띠 매듭)
+    const sash = [[-46, -108], [22, -118], [18, -132], [-48, -122]];
+    fillP(sash, RED, prog(p, 0.3, 0.6));
+    ink(sash, prog(p, 0.3, 0.6), { w: 3.5, close: true });
+    // Hanging sash ribbon
+    ink(Cp([-15, -110], [-10, -80], [-25, -50], [-20, -30], 8), prog(p, 0.4, 0.7), { w: 4.5, col: RED });
+
+    // 3. Folded Arms & Hands (모아쥔 기도 손)
+    // Left upper arm & sleeve
+    const sleeve = cat(
+      Cp([-35, -200], [-10, -170], [15, -170], [25, -155], 10),
+      Lp([25, -155], [10, -130], 4),
+      Cp([10, -130], [-15, -145], [-35, -165], [-45, -180], 10)
+    );
+    fillP(sleeve, PAPERL, prog(p, 0.3, 0.6));
+    ink(sleeve, prog(p, 0.3, 0.6), { w: 4.5 });
+
+    // Two Hands Clasped Together (섬세한 손가락 관절 묘사)
+    const hands = [[22, -150], [36, -165], [42, -180], [35, -190], [24, -175], [18, -155]];
+    fillP(hands, PAPERL, prog(p, 0.4, 0.7));
+    ink(hands, prog(p, 0.4, 0.7), { w: 3.5 });
+    // Fingers line
+    ink(Lp(32, -168, 38, -182, 3), prog(p, 0.5, 0.8), { w: 2 });
+    ink(Lp(26, -162, 32, -176, 3), prog(p, 0.5, 0.8), { w: 2 });
+
+    // 4. Head, Turban & Flowing Beard (사실적인 두상과 수염)
+    // Headcloth base (터번)
+    const turban = cat(
+      Cp([-38, -205], [-42, -245], [-20, -270], [5, -265], 12),
+      Cp([5, -265], [22, -260], [26, -240], [18, -225], 10),
+      Lp([18, -225], [-38, -205], 6)
+    );
+    fillP(turban, PAPERL, prog(p, 0.3, 0.6));
+    ink(turban, prog(p, 0.3, 0.6), { w: 5 });
+    // Turban Agel Cord (머리띠)
+    ink(Cp([-35, -240], [-10, -248], [15, -242], [24, -235], 10), prog(p, 0.4, 0.7), { w: 5, col: RED });
+
+    // Face Profile (이목구비: 이마, 오뚝한 콧날, 입술)
+    const faceProfile = [
+      [8, -240], [18, -240], [24, -228], [17, -224], [22, -216], [14, -214]
+    ];
+    ink(faceProfile, prog(p, 0.45, 0.75), { w: 3.5 });
+
+    // Calm reverent eye (차분한 눈썹과 감은 눈)
+    ink(Lp(6, -234, 14, -232, 3), prog(p, 0.5, 0.8), { w: 3 }); // Eyebrow
+    ink(Ap(10, -228, 4, 0.2, Math.PI - 0.2, 6), prog(p, 0.55, 0.85), { w: 2.5 }); // Closed eyelid
+
+    // Flowing White/Gray Beard (결이 살아있는 긴 수염)
+    const beard = cat(
+      Lp(14, -214, 22, -216, 3),
+      Cp([22, -216], [28, -170], [20, -135], [5, -120], 14),
+      Cp([5, -120], [-10, -125], [-25, -145], [-28, -175], 12),
+      Lp([-28, -175], [5, -210], 6)
+    );
+    fillP(beard, INK, prog(p, 0.4, 0.7));
+    ink(beard, prog(p, 0.4, 0.7), { w: 4.5 });
+    // Beard Strands (수염 결 펜선)
+    for (let k = 0; k < 5; k++) {
+      const u = k / 4;
+      ink(Cp([lerp(12, -20, u), -200], [lerp(18, -10, u), -165], [lerp(12, -5, u), -145], [lerp(2, -8, u), -125], 8),
+        prog(p, 0.55 + k * 0.05, 0.85 + k * 0.05), { w: 2, col: PAPERL });
+    }
+
+  } else {
+    // ── UPRIGHT REVERENT / VICTORIOUS POSE (의연한 기립 자세)
+    // 1. Long Outer Cloak & Tunic (발목까지 떨어지는 우아한 로브)
+    const cloak = cat(
+      Lp(-45, 0, 45, 0, 8),
+      Cp([45, 0], [42, -90], [38, -180], [28, -240], 16),
+      Lp([28, -240], [-28, -240], 6),
+      Cp([-28, -240], [-38, -180], [-42, -90], [-45, 0], 16)
+    );
+    fillP(cloak, TONE2, prog(p, 0.1, 0.45) * 0.9);
+    ink(cloak, prog(p, 0, 0.4), { w: 5.5 });
+    hatch(cloak, -45, -240, 45, 0, 22, prog(p, 0.3, 0.65), { w: 2, col: TONE });
+
+    // Feet in Sandals
+    ink(cat(Lp(-22, 0, -22, 10, 2), Lp(-22, 10, -8, 10, 2)), prog(p, 0.3, 0.6), { w: 3.5 });
+    ink(cat(Lp(12, 0, 12, 10, 2), Lp(12, 10, 26, 10, 2)), prog(p, 0.3, 0.6), { w: 3.5 });
+
+    // Inner Fold Curves (옷주름)
+    ink(Cp([-10, -230], [-15, -160], [-5, -80], [-12, 0], 14), prog(p, 0.3, 0.7), { w: 3 });
+    ink(Cp([15, -220], [10, -150], [20, -70], [18, 0], 14), prog(p, 0.35, 0.75), { w: 3 });
+
+    // Red Sash at Waist
+    const sash = [[-34, -135], [34, -135], [32, -150], [-32, -150]];
+    fillP(sash, RED, prog(p, 0.3, 0.6));
+    ink(sash, prog(p, 0.3, 0.6), { w: 3.5, close: true });
+    ink(Lp(-12, -135, -15, -85, 4), prog(p, 0.4, 0.7), { w: 5, col: RED });
+
+    // 2. Arms (한 손은 가슴에, 한 손은 하늘을 향해 평안히 펼침)
+    // Left arm to chest
+    const lArm = cat(
+      Cp([-28, -230], [-45, -195], [-35, -165], [-5, -160], 10),
+      Lp([-5, -160], [12, -162], 3)
+    );
+    fillP(lArm, PAPERL, prog(p, 0.35, 0.65));
+    ink(lArm, prog(p, 0.35, 0.65), { w: 4.5 });
+
+    // Right arm raised upward praising God
+    const rArm = cat(
+      Cp([28, -230], [55, -210], [68, -245], [75, -280], 12),
+      Lp([75, -280], [62, -280], 3),
+      Cp([62, -280], [52, -245], [42, -215], [20, -205], 10)
+    );
+    fillP(rArm, PAPERL, prog(p, 0.4, 0.7));
+    ink(rArm, prog(p, 0.4, 0.7), { w: 4.5 });
+    // Open Hand/Palm
+    const handUp = [[62, -280], [68, -305], [78, -302], [75, -280]];
+    fillP(handUp, PAPERL, prog(p, 0.5, 0.8));
+    ink(handUp, prog(p, 0.5, 0.8), { w: 3 });
+
+    // 3. Head, Turban & Long Venerable Beard
+    const turban = cat(
+      Cp([-26, -240], [-28, -280], [0, -300], [26, -285], 12),
+      Cp([26, -285], [28, -255], [16, -240], [0, -240], 10)
+    );
+    fillP(turban, PAPERL, prog(p, 0.3, 0.6));
+    ink(turban, prog(p, 0.3, 0.6), { w: 5 });
+    ink(Cp([-24, -270], [0, -276], [25, -268], [27, -260], 8), prog(p, 0.4, 0.7), { w: 5, col: RED });
+
+    // Face Profile looking up
+    fillP(Ap(2, -250, 18, 0, Math.PI * 2, 16), PAPERL, prog(p, 0.35, 0.65));
+    // Nose, Eye & Brow
+    dot(10, -256, 3.2); // Eye
+    ink(Lp(6, -263, 15, -260, 3), prog(p, 0.45, 0.75), { w: 3 }); // Brow
+
+    // Graceful Beard
+    const beard = cat(
+      Lp(12, -242, 16, -215, 6),
+      Cp([16, -215], [10, -170], [-5, -155], [-16, -175], 10),
+      Lp([-16, -175], [-4, -235], 6)
+    );
+    fillP(beard, INK, prog(p, 0.4, 0.7));
+    ink(beard, prog(p, 0.4, 0.7), { w: 4.5 });
+    for (let k = 0; k < 4; k++) {
+      const u = k / 3;
+      ink(Cp([lerp(8, -12, u), -230], [lerp(12, -6, u), -195], [lerp(6, -2, u), -175], [lerp(0, -6, u), -160], 6),
+        prog(p, 0.55 + k * 0.06, 0.85 + k * 0.06), { w: 2, col: PAPERL });
+    }
   }
+
+  c.restore();
+}
+
+// ── Realistic Persian King Darius (패널 5: 새벽에 달려온 다리오 왕)
+function drawKingDarius(p) {
+  if (p <= 0) return;
+  c.save();
+
+  // Torso bending forward in urgency (다급하게 굴을 들여다보는 상체)
+  const royalRobe = cat(
+    Lp(-60, 0, 40, 0, 8),
+    Cp([40, 0], [45, -70], [50, -140], [35, -200], 12),
+    Lp([35, -200], [-35, -185], 6),
+    Cp([-35, -185], [-60, -130], [-70, -60], [-60, 0], 12)
+  );
+  fillP(royalRobe, INK, prog(p, 0.1, 0.45));
+  ink(royalRobe, prog(p, 0, 0.4), { w: 5.5 });
+
+  // Royal Purple/Red Mantle Trim (페르시아 왕실 금장 트리밍)
+  ink(Cp([35, -200], [45, -140], [40, -70], [38, 0], 12), prog(p, 0.2, 0.5), { w: 4.5, col: RED });
+
+  // Right arm reaching urgently towards the pit
+  const arm = cat(
+    Cp([25, -185], [55, -175], [85, -155], [115, -135], 10),
+    Lp([115, -135], [105, -115], 3),
+    Cp([105, -115], [75, -135], [45, -155], [20, -165], 10)
+  );
+  fillP(arm, PAPERL, prog(p, 0.25, 0.6));
+  ink(arm, prog(p, 0.25, 0.6), { w: 4.5 });
+  // Royal Scepter or open tense hand
+  const handTense = [[115, -135], [130, -130], [135, -120], [125, -110], [105, -115]];
+  fillP(handTense, PAPERL, prog(p, 0.35, 0.7));
+  ink(handTense, prog(p, 0.35, 0.7), { w: 3 });
+
+  // Royal Head & Persian Fluted Crown (페르시아 궁정 원통형 왕관)
+  const crown = [
+    [-15, -240], [25, -240], [28, -280],
+    [20, -274], [10, -285], [0, -274], [-10, -285], [-18, -280]
+  ];
+  fillP(crown, RED, prog(p, 0.3, 0.6));
+  ink(crown, prog(p, 0.3, 0.6), { w: 4 });
+  dot(5, -260, 4, PAPERL); // Jewel on crown
+
+  // Face with intense worry (초조하고 다급한 눈매와 열린 입)
+  const face = [[-10, -240], [18, -240], [25, -215], [12, -205], [-10, -215]];
+  fillP(face, PAPERL, prog(p, 0.3, 0.6));
+  ink(face, prog(p, 0.3, 0.6), { w: 3.5 });
+  // Wide anxious eye & furrowed brow
+  dot(14, -228, 3.8);
+  ink(Lp(8, -236, 20, -232, 3), prog(p, 0.4, 0.7), { w: 3.5 });
+  // Open shouting mouth
+  fillP([[18, -215], [24, -213], [22, -208], [17, -210]], INK, prog(p, 0.4, 0.7));
+
+  // Curled Persian King Beard (둥글게 말린 긴 왕의 수염)
+  const beard = cat(
+    Lp(12, -205, 18, -170, 6),
+    Cp([18, -170], [12, -145], [-5, -140], [-15, -165], 8),
+    Lp([-15, -165], [-10, -215], 4)
+  );
+  fillP(beard, INK, prog(p, 0.35, 0.65));
+  ink(beard, prog(p, 0.35, 0.65), { w: 4.5 });
+  // Curls
+  for (let k = 0; k < 3; k++) {
+    ink(Ap(0 + k * 6, -160 + k * 8, 7, 0, Math.PI * 1.8, 10), prog(p, 0.5, 0.8), { w: 2.5, col: PAPERL });
+  }
+
+  c.restore();
+}
+
+// ── Realistic Plotting Officials (패널 2: 음모를 꾸미는 페르시아 신하들)
+function drawOfficialsRealistic(p) {
+  if (p <= 0) return;
+  c.save();
+
+  // Official 1 (앞에서 다니엘을 가리키며 밀담하는 관료)
+  c.save();
+  c.translate(780, 680);
+  // Robe
+  const r1 = cat(Lp(-35, 0, 35, 0, 6), Cp([35, 0], [25, -90], [15, -180], [0, -210], 10), Lp([0, -210], [-35, -200], 4), Cp([-35, -200], [-45, -100], [-40, -40], [-35, 0], 10));
+  fillP(r1, INK, prog(p, 0.1, 0.45));
+  ink(r1, prog(p, 0, 0.4), { w: 4.5 });
+  // Turban & Beard
+  fillP(Ap(5, -230, 20, 0, Math.PI * 2, 14), PAPERL, prog(p, 0.2, 0.5));
+  ink(Ap(5, -230, 20, 0, Math.PI * 2, 14), prog(p, 0.2, 0.5), { w: 4 });
+  fillP([[-5, -225], [16, -225], [12, -180], [-10, -195]], INK, prog(p, 0.3, 0.6));
+  // Pointing finger gesture
+  ink(Cp([-10, -180], [-30, -165], [-55, -160], [-75, -165], 8), prog(p, 0.35, 0.7), { w: 4.5, col: RED });
+  c.restore();
+
+  // Official 2 (뒤에서 비열하게 웃으며 맞장구치는 관료)
+  c.save();
+  c.translate(920, 680);
+  const r2 = cat(Lp(-30, 0, 30, 0, 6), Cp([30, 0], [20, -85], [12, -170], [0, -200], 10), Lp([0, -200], [-30, -190], 4), Cp([-30, -190], [-40, -95], [-35, -35], [-30, 0], 10));
+  fillP(r2, TONE, prog(p, 0.2, 0.55));
+  ink(r2, prog(p, 0.1, 0.5), { w: 4.5 });
+  // Head & Turban
+  fillP(Ap(-5, -220, 18, 0, Math.PI * 2, 14), PAPERL, prog(p, 0.3, 0.6));
+  ink(Ap(-5, -220, 18, 0, Math.PI * 2, 14), prog(p, 0.3, 0.6), { w: 4 });
+  fillP([[-15, -215], [5, -215], [2, -180], [-18, -190]], INK, prog(p, 0.35, 0.65));
+  c.restore();
+
+  c.restore();
 }
 
 function drawLionFigure(p, asleep = false) {
@@ -384,7 +627,7 @@ function panel1(t) {
   // Daniel Character Praying
   c.save();
   c.translate(680, 680);
-  drawDanielCharacter(prog(t, s + 0.2, s + 0.8), 'pray');
+  drawDanielRealistic(prog(t, s + 0.2, s + 0.8), 'pray');
   c.restore();
 
   // Jerusalem Light stream
@@ -429,11 +672,8 @@ function panel2(t) {
     c.restore();
   }
 
-  // Whispering Officials Silhouette
-  const off1 = cat(Lp(780, 680, 780, 420, 10), Ap(810, 390, 26, 0, Math.PI * 2, 16), Lp(840, 420, 840, 680, 10));
-  fillP(off1, INK, prog(t, s + 0.3, s + 0.7));
-  const off2 = cat(Lp(920, 680, 920, 440, 10), Ap(950, 410, 24, 0, Math.PI * 2, 16), Lp(980, 440, 980, 680, 10));
-  fillP(off2, TONE, prog(t, s + 0.4, s + 0.8));
+  // Whispering Officials Silhouette (Realistic plotting officials)
+  drawOfficialsRealistic(prog(t, s + 0.3, s + 0.8));
 
   // Speech banner
   hand('"30일 동안 왕 외에"', 210, 300, 54, prog(t, s + 0.4, s + 0.8));
@@ -466,7 +706,7 @@ function panel3(t) {
   c.save();
   c.translate(600, 680);
   c.scale(0.85, 0.85);
-  drawDanielCharacter(prog(t, s + 0.5, s + 0.9), 'pray');
+  drawDanielRealistic(prog(t, s + 0.5, s + 0.9), 'pray');
   c.restore();
 
   // Rope going down
@@ -504,7 +744,7 @@ function panel4(t) {
   // Daniel standing peacefully in center
   c.save();
   c.translate(590, 700);
-  drawDanielCharacter(prog(t, s + 0.3, s + 0.7), 'safe');
+  drawDanielRealistic(prog(t, s + 0.3, s + 0.7), 'safe');
   c.restore();
 
   // Divine Heavenly Light Rays from Above
@@ -536,13 +776,11 @@ function panel5(t) {
   fillP(dawn, PAPERL, prog(t, s + 0.1, s + 0.4));
   ink(dawn, prog(t, s + 0.1, s + 0.4), { w: 4 });
 
-  // King Darius Figure Rushing
-  const darius = cat(Lp(320, 700, 320, 460, 10), Ap(320, 410, 28, 0, Math.PI * 2, 16), Lp(360, 460, 360, 700, 10));
-  fillP(darius, INK, prog(t, s + 0.2, s + 0.6));
-  // Crown on King
-  const crown = [[300, 385], [310, 365], [320, 380], [330, 365], [340, 385]];
-  fillP(crown, RED, prog(t, s + 0.4, s + 0.7));
-  ink(crown, prog(t, s + 0.4, s + 0.7), { w: 3 });
+  // King Darius Figure Rushing (Realistic Persian King)
+  c.save();
+  c.translate(340, 700);
+  drawKingDarius(prog(t, s + 0.2, s + 0.65));
+  c.restore();
 
   // King's cry speech bubble
   const bp = prog(t, s + 0.5, s + 0.85);
@@ -573,7 +811,7 @@ function panel6(t) {
   // Daniel Unharmed Standing Victorious
   c.save();
   c.translate(340, 700);
-  drawDanielCharacter(prog(t, s + 0.2, s + 0.6), 'safe');
+  drawDanielRealistic(prog(t, s + 0.2, s + 0.6), 'safe');
   c.restore();
 
   // Grand Proclamation Decree
