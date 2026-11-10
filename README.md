@@ -16,7 +16,7 @@ HTML Canvas로 모든 프레임을 시간 `t`의 함수로 그리고(`frame(t)`)
 | 07 | [다니엘과 사자굴 (쿠르츠게작트풍)](projects/07-daniel-kurzgesagt/NOTES.md) | 15초 | K. 쿠르츠게작트 인포그래픽 | — |
 | 08 | [다니엘과 사자굴 (바이블프로젝트풍)](projects/08-daniel-bibleproject/NOTES.md) | 15초 | 크라프트지 · 펜 드로우온 · 6패널 인포그래픽 | — |
 | 09 | [다니엘과 사자굴 (단면도 디오라마)](projects/09-daniel-nutshell/LOG.md) | 15초 | K. 쿠르츠게작트풍 단면도 — 07 재제작 (v1·v2 보존) | — |
-| 10 | [동성애자인데 천국 갈 수 있을까요?](projects/10-heaven-question/LOG.md) | 76초 | K. 쿠르츠게작트풍 — 연구 리포트, 진지한 톤 | — |
+| 10 | [동성애자인데 천국 갈 수 있을까요?](projects/10-heaven-question/LOG.md) | 76초 | K. 쿠르츠게작트풍 — 연구 리포트, 진지한 톤 (v1·v2 보존) | — |
 
 스타일 기호(G·J·K 등)는 [STYLE_LIBRARY.md](STYLE_LIBRARY.md)를 따릅니다. 좋은 결과를 낸 프롬프트·판단·피드백은 [PLAYBOOK.md](PLAYBOOK.md)에 모읍니다. 시리즈 영상에서 스타일을 돌려쓰기 위한 목록과 공통 규칙이 정리되어 있습니다.
 
