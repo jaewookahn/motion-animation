@@ -532,7 +532,7 @@ function hud(c,t){
 window.renderAt=t=>{frame(t);return true;};
 window.grab=(t,type='image/png',q)=>{frame(t);return cv.toDataURL(type,q);};
 const CAPTURE=new URLSearchParams(location.search).has('capture');
-window.ready=document.fonts.load(f(900,40)).then(()=>Promise.all([f(800,40),f(700,40),f(600,40),f(500,40),f(700,20,'M'),f(400,20,'M')].map(x=>document.fonts.load(x,'가A')))).then(()=>document.fonts.ready).then(()=>{
+window.ready=document.fonts.load(f(900,40)).catch(()=>[]).then(()=>Promise.all([f(800,40),f(700,40),f(600,40),f(500,40),f(700,20,'M'),f(400,20,'M')].map(x=>document.fonts.load(x,'가A').catch(()=>[])))).then(()=>document.fonts.ready).then(()=>{
   if(!CAPTURE){let st=performance.now();const loop=n=>{const t=((n-st)/1000)%DUR;frame(t);requestAnimationFrame(loop);};requestAnimationFrame(loop);}
   return true;});
 </script></body></html>

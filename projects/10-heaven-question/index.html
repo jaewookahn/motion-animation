@@ -414,6 +414,6 @@ function frame(t){
 window.renderAt=t=>{frame(t);return true;};
 window.grab=(t,type='image/png',q)=>{frame(t);return cv.toDataURL(type,q);};
 const CAPTURE=new URLSearchParams(location.search).has('capture');
-window.ready=Promise.all([F(900,40),F(800,40),F(700,40),F(600,40),F(500,40)].map(x=>document.fonts.load(x,'천국A'))).then(()=>document.fonts.ready).then(()=>{
+window.ready=Promise.all([F(900,40),F(800,40),F(700,40),F(600,40),F(500,40)].map(x=>document.fonts.load(x,'천국A').catch(()=>[]))).then(()=>document.fonts.ready).then(()=>{
   if(!CAPTURE){const st=performance.now();const loop=n=>{frame(((n-st)/1000)%DUR);requestAnimationFrame(loop);};requestAnimationFrame(loop);}return true;});
 </script></body></html>

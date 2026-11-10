@@ -30,8 +30,8 @@ tools/
   stills.py             지정 시각의 스틸 PNG 뽑기 (검수용)
   sheet.py              스틸들을 컨택트 시트로 묶기
   compare.py            여러 버전을 같은 시각으로 나란히 비교한 JPG 만들기
-  setup_fonts.sh        fonts/ 채우기
-fonts/                  (git 제외)
+  setup_fonts.sh        fonts/ 다시 채우기 (보통은 필요 없음)
+fonts/                  사용 폰트 원본 + licenses/ (저장소에 포함, 약 19MB)
 projects/NN-이름/
   index.html            애니메이션 (브라우저로 열면 실시간 재생)
   audio.py              사운드 합성 (없으면 무음으로 렌더)
@@ -46,7 +46,6 @@ projects/NN-이름/
 
 ```sh
 pip install numpy scipy pillow playwright && playwright install chromium
-zsh tools/setup_fonts.sh                     # 폰트 준비 (처음 한 번)
 ```
 
 ## 사용법
@@ -61,16 +60,17 @@ python tools/compare.py --out /tmp/cmp.jpg --times 1,5,9 projects/09-daniel-nuts
 `--dur`은 각 프로젝트 `index.html`의 `DUR` 값과 맞춥니다(위 작품 목록의 길이).
 
 ## 폰트
-용량과 배포 조건 때문에 git에 넣지 않고 `tools/setup_fonts.sh`로 채웁니다.
+저장소에 포함되어 있어 클론만 하면 바로 재생됩니다. 라이선스 원문은 `fonts/licenses/`, 상세는 [fonts/README.md](fonts/README.md). 폰트 파일이 없어도 대체 폰트로 재생됩니다.
 
 | 폰트 | 용도 | 라이선스 | 출처 |
 |---|---|---|---|
-| Pretendard | 본문·타이틀 | OFL | 로컬 설치본 복사 |
-| Hack Nerd Font Mono | HUD·코드풍 문자 | MIT | 로컬 설치본 복사 |
-| Black Han Sans, Gaegu, Nanum Pen Script | 손글씨·레터링 | OFL | Google Fonts 저장소에서 내려받기 |
+| Pretendard | 본문·타이틀 | OFL | orioncactus/pretendard |
+| Hack Nerd Font Mono | HUD·코드풍 문자 | MIT | source-foundry/Hack · Nerd Fonts |
+| Black Han Sans, Gaegu, Nanum Pen Script | 손글씨·레터링 | OFL | Google Fonts |
 
 ## 새 프로젝트를 만들 때
 - `projects/NN-이름/` 폴더를 만들고, 폰트는 `../../fonts/`로 참조합니다.
+- 폰트 로드는 `document.fonts.load(...).catch(()=>[])`처럼 실패해도 진행되게 씁니다 (폰트가 없으면 애니메이션이 시작되지 않던 문제 방지).
 - `index.html`은 `window.ready`(폰트 로드 완료 Promise)와 `window.grab(t)`(PNG dataURL 반환)를 노출합니다. `?capture=1`이 없으면 requestAnimationFrame으로 실시간 재생합니다.
 - 모든 움직임은 `t`만으로 결정합니다(난수는 `hr(i)` 해시 사용). 어느 프레임이든 같은 결과가 나와야 렌더가 재현됩니다.
 - 다시 만들 때는 덮어쓰기 전에 `versions/vN.html`로 보존하고(폰트 경로 `../../../fonts/`), `LOG.md`에 프롬프트 원문과 피드백을 적은 뒤 `tools/compare.py`로 비교 이미지를 남깁니다. 자세한 흐름은 `PLAYBOOK.md`.

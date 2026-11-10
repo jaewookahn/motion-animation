@@ -324,6 +324,6 @@ function frame(t){
 window.renderAt=t=>{frame(t);return true;};
 window.grab=(t,type='image/png',q)=>{frame(t);return cv.toDataURL(type,q);};
 const CAPTURE=new URLSearchParams(location.search).has('capture');
-window.ready=Promise.all(['40px BH','40px GA','40px NP'].map(x=>document.fonts.load(x,'노아A'))).then(()=>document.fonts.ready).then(()=>{
+window.ready=Promise.all(['40px BH','40px GA','40px NP'].map(x=>document.fonts.load(x,'노아A').catch(()=>[]))).then(()=>document.fonts.ready).then(()=>{
   if(!CAPTURE){const st=performance.now();const loop=n=>{frame(((n-st)/1000)%DUR);requestAnimationFrame(loop);};requestAnimationFrame(loop);}return true;});
 </script></body></html>
