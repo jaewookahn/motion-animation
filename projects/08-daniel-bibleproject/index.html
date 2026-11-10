@@ -282,7 +282,8 @@ function arrow(pts, p, col = RED, w = 10) {
 // ───────── Character System (BibleProject-style figures)
 // 실루엣은 SVG 패스 문법(M/L/C/Q/Z, 절대좌표)으로 저작 → 점 배열로 변환해 잉크 지터를 그대로 적용.
 // 모든 인물은 오른쪽을 바라보는 기준으로 설계. 왼쪽을 보게 하려면 scale(-1,1).
-const SKIN = '#E6CDAA', BEARD_W = '#ECE6DA', ROBE_D = '#3B322A', ROBE_M = '#5E5348';
+const SKIN = '#E6CDAA', BEARD_W = '#ECE6DA', ROBE_D = '#4A2E2A', ROBE_M = '#5E5348';
+const SLATE = '#7D8A8C', SAGE = '#99A083', OCHRE = '#C49A5A', CREAM = '#E7D9BE';
 const _svc = new Map();
 function svc(d, n = 10) {
   if (_svc.has(d)) return _svc.get(d);
@@ -334,7 +335,7 @@ function head(o = {}) {
   }
   // 얼굴 옆선: 이마 → 콧대 → 코끝 → 인중 → 입술 → 턱 → 목
   const FACE = 'M -14 0 C -26 -10 -30 -40 -24 -58 C -16 -74 6 -76 16 -64 C 20 -58 21 -50 20 -44 L 23 -40 L 30 -30 L 24 -27 L 24 -22 L 22 -19 C 24 -14 20 -6 12 -4 C 6 -2 4 0 2 2 Z';
-  S(FACE, SKIN, p, 0.1, 0.5, { w: 3.5 });
+  S(FACE, SKIN, p, 0.1, 0.5, { w: 4 });
   // 귀
   S('M -7 -43 C -14 -43 -15 -28 -8 -27 C -3 -29 -3 -40 -7 -43 Z', SKIN, p, 0.35, 0.55, { w: 2.5 });
   Ln('M -8 -39 C -11 -37 -11 -33 -8 -31', p, 0.45, 0.6, { w: 1.6 });
@@ -409,7 +410,7 @@ function standFig(o = {}) {
   S('M -32 -6 L -4 -6 L -4 0 L -36 0 Z', SKIN, p, 0.02, 0.25, { w: 3 });
   S('M 18 -6 L 50 -6 Q 60 -4 58 0 L 16 0 Z', SKIN, p, 0.02, 0.25, { w: 3 });
   // 겉옷
-  S(ROBE_STAND, robe, p, 0, 0.4, { w: 4.5 });
+  S(ROBE_STAND, robe, p, 0, 0.4, { w: 6 });
   shade(ROBE_STAND, [-60, -360, 26, 360], p, 0.3, 0.55, { sp: 12 });
   Ln('M 12 -244 C 16 -170 22 -90 24 -10', p, 0.3, 0.5, { w: 2.4 });
   Ln('M -12 -244 C -16 -170 -24 -90 -30 -10', p, 0.32, 0.52, { w: 2.4 });
@@ -428,7 +429,7 @@ function standFig(o = {}) {
   };
   const armFront = o.arm === 'raise' || o.arm === 'whisper';
   if (!armFront) drawArm();
-  c.save(); c.translate(1, -384); c.rotate(o.headRot ?? 0); head({ ...(o.head || {}), p }); c.restore();
+  c.save(); c.translate(1, -384); c.rotate(o.headRot ?? 0); c.scale(1.22, 1.22); head({ ...(o.head || {}), p }); c.restore();
   if (armFront) drawArm();
   c.restore();
 }
@@ -439,14 +440,14 @@ const KNEEL_CLOAK = 'M -12 -226 C -40 -216 -56 -180 -56 -140 C -58 -100 -74 -60 
 function kneelFig(o = {}) {
   const p = o.p ?? 1, robe = o.robe ?? TONE2;
   S('M -66 -4 L -98 -4 C -104 -8 -100 -16 -92 -16 L -70 -14 Z', SKIN, p, 0.02, 0.25, { w: 3 });
-  S(KNEEL_ROBE, robe, p, 0, 0.4, { w: 4.5 });
+  S(KNEEL_ROBE, robe, p, 0, 0.4, { w: 6 });
   shade(KNEEL_ROBE, [-80, -230, 30, 230], p, 0.3, 0.55, { sp: 12 });
   Ln('M 60 -30 C 40 -44 20 -58 6 -76', p, 0.3, 0.5, { w: 2.4 });
   Ln('M -34 -64 C -10 -44 20 -26 52 -14', p, 0.32, 0.52, { w: 2 });
   if (o.sash) S('M -50 -114 L 6 -106 L 5 -92 L -53 -100 Z', o.sash, p, 0.35, 0.55, { w: 3 });
   if (o.cloak) S(KNEEL_CLOAK, o.cloak, p, 0.25, 0.55, { w: 4 });
   S('M -6 -234 L 8 -234 L 10 -214 L -8 -216 Z', SKIN, p, 0.15, 0.35, { w: 3 });
-  c.save(); c.translate(1, -232); c.rotate(o.headRot ?? 0.2); head({ ...(o.head || {}), p }); c.restore();
+  c.save(); c.translate(1, -232); c.rotate(o.headRot ?? 0.2); c.scale(1.22, 1.22); head({ ...(o.head || {}), p }); c.restore();
   // 모은 두 손 (팔은 수염 앞)
   S('M -30 -206 C -28 -176 -16 -152 0 -140 C 16 -150 30 -166 38 -176 L 30 -194 C 20 -182 8 -170 0 -166 C -6 -180 -4 -200 -8 -210 Z', robe, p, 0.4, 0.65, { w: 4 });
   S('M 30 -180 C 38 -196 48 -212 56 -224 C 61 -220 59 -206 52 -194 C 46 -184 40 -178 34 -174 Z', SKIN, p, 0.55, 0.75, { w: 2.6 });
@@ -456,20 +457,20 @@ function kneelFig(o = {}) {
 // ── 등장인물 프리셋
 const DANIEL_HEAD = { wear: 'turban', beard: 'white' };
 function daniel(p, pose, extra = {}) {
-  const base = { p, robe: TONE2, cloak: TONE, sash: RED };
+  const base = { p, robe: CREAM, cloak: SLATE, sash: RED };
   if (pose === 'pray') kneelFig({ ...base, head: { ...DANIEL_HEAD, eye: 'closed' }, ...extra });
   else standFig({ ...base, arm: pose === 'raise' ? 'raise' : 'clasp', head: { ...DANIEL_HEAD, eye: pose === 'raise' ? 'open' : 'closed' }, ...extra });
 }
 function darius(p) {
-  standFig({ p, robe: ROBE_D, trim: RED, arm: 'reach', lean: 0.12, headRot: 0.06, head: { wear: 'crown', beard: 'persian', eye: 'wide', mouth: 'open' } });
+  standFig({ p, robe: ROBE_D, trim: OCHRE, arm: 'reach', lean: 0.12, headRot: 0.06, head: { wear: 'crown', beard: 'persian', eye: 'wide', mouth: 'open' } });
 }
 function officials(p) {
   // 왼쪽(두루마리)을 바라보도록 뒤집음
   c.save(); c.translate(960, 680); c.scale(-0.88, 0.88);
-  standFig({ p: prog(p, 0.1, 1), robe: ROBE_M, arm: 'whisper', lean: 0.07, headRot: 0.1, head: { wear: 'cap', capCol: TONE2, beard: 'short', eye: 'sly' } });
+  standFig({ p: prog(p, 0.1, 1), robe: SAGE, arm: 'whisper', lean: 0.07, headRot: 0.1, head: { wear: 'cap', capCol: TONE2, beard: 'short', eye: 'sly' } });
   c.restore();
   c.save(); c.translate(810, 680); c.scale(-0.92, 0.92);
-  standFig({ p: prog(p, 0, 0.9), robe: TONE, arm: 'point', head: { wear: 'cap', capCol: INK, beard: 'short', eye: 'sly' } });
+  standFig({ p: prog(p, 0, 0.9), robe: OCHRE, arm: 'point', head: { wear: 'cap', capCol: INK, beard: 'short', eye: 'sly' } });
   c.restore();
 }
 
