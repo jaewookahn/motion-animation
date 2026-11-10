@@ -19,15 +19,23 @@ a = ap.parse_args()
 
 proj = pathlib.Path(a.project).resolve(); outdir = proj / 'out'; outdir.mkdir(exist_ok=True)
 wav = outdir / 'music.wav'; mp4 = pathlib.Path(a.out) if a.out else outdir / f'{proj.name}.mp4'
-subprocess.run([sys.executable, str(proj / 'audio.py'), str(wav)], check=True, cwd=proj)
+has_audio = (proj / 'audio.py').exists()
+if has_audio:
+    subprocess.run([sys.executable, str(proj / 'audio.py'), str(wav)], check=True, cwd=proj)
+else:
+    print('audio.py 없음 → 무음으로 렌더합니다')
 
 vf = 'tmix=frames=2,fps=60' + (f',noise=alls={a.grain}:allf=t' if a.grain else '') + ',format=yuv420p'
-ff = subprocess.Popen(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
-    '-f', 'image2pipe', '-framerate', str(a.fps), '-c:v', 'png', '-i', '-', '-i', str(wav),
-    '-filter_complex', f'[0:v]{vf}[v];[1:a]loudnorm=I=-14:TP=-1:LRA=7[a]',
-    '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'slow', '-crf', str(a.crf),
-    '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-ar', '48000', '-t', str(a.dur),
-    '-movflags', '+faststart', str(mp4)], stdin=subprocess.PIPE)
+cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+       '-f', 'image2pipe', '-framerate', str(a.fps), '-c:v', 'png', '-i', '-']
+if has_audio:
+    cmd += ['-i', str(wav), '-filter_complex', f'[0:v]{vf}[v];[1:a]loudnorm=I=-14:TP=-1:LRA=7[a]',
+            '-map', '[v]', '-map', '[a]', '-c:a', 'aac', '-b:a', '256k', '-ar', '48000']
+else:
+    cmd += ['-filter_complex', f'[0:v]{vf}[v]', '-map', '[v]']
+cmd += ['-c:v', 'libx264', '-preset', 'slow', '-crf', str(a.crf), '-pix_fmt', 'yuv420p',
+        '-t', str(a.dur), '-movflags', '+faststart', str(mp4)]
+ff = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
 nf = int(a.fps * a.dur)
 with sync_playwright() as p:
