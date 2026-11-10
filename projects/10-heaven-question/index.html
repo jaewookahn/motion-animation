@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>동성애자인데 천국 갈 수 있을까요?</title>
+<style>
+@font-face{font-family:P;src:url(../../fonts/Pretendard-Black.otf);font-weight:900}
+@font-face{font-family:P;src:url(../../fonts/Pretendard-ExtraBold.otf);font-weight:800}
+@font-face{font-family:P;src:url(../../fonts/Pretendard-Bold.otf);font-weight:700}
+@font-face{font-family:P;src:url(../../fonts/Pretendard-SemiBold.otf);font-weight:600}
+@font-face{font-family:P;src:url(../../fonts/Pretendard-Medium.otf);font-weight:500}
+html,body{margin:0;background:#000;height:100%;overflow:hidden}
+canvas{position:absolute;inset:0;margin:auto;width:100vw;height:56.25vw;max-height:100vh;max-width:177.78vh}
+</style></head>
+<body><canvas id="cv"></canvas>
+<script>
+// 연구 리포트 「동성애자인데 천국 갈 수 있을까요?」 · 쿠르츠게작트풍 · 진지한 톤 · 76초
+const W=1920,H=1080,DUR=76;
+const cv=document.getElementById('cv');cv.width=W;cv.height=H;const MAIN=cv.getContext('2d');
+const OFF=document.createElement('canvas');OFF.width=W;OFF.height=H;const OFFC=OFF.getContext('2d');
+let c=MAIN;
+// ── math
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const prog=(t,a,b)=>clamp((t-a)/(b-a));
+const eIO=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const eOut=x=>1-Math.pow(1-x,3);
+const eSine=x=>-(Math.cos(Math.PI*x)-1)/2;
+const hr=i=>{const x=Math.sin(i*127.1+311.7)*43758.5453;return x-Math.floor(x)};
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const mixC=(a,b,t)=>{const A=hex(a),B=hex(b);return '#'+A.map((v,i)=>Math.round(lerp(v,B[i],clamp(t))).toString(16).padStart(2,'0')).join('');};
+const env=(u,a,b,f=.5)=>eSine(prog(u,a,a+f))*(1-eSine(prog(u,b-f,b)));
+const F=(w,s)=>`${w} ${s}px P`;
+// ── palette (serious)
+const K={night0:'#060A18',night1:'#141B36',navy:'#1B2340',plum:'#2A2045',gold:'#F2C46B',goldL:'#FFE3A6',cream:'#F4EFE6',mute:'#9AA3BD',
+  teal:'#4FB3A9',rose:'#D9776B',cold:'#6E7FA6',coldD:'#3A4560',red:'#C8553D',stone:'#2A3150',stoneL:'#3A4268',skin:'#E2AE8A',skinD:'#C99070'};
+// ── paint helpers
+function lg(x0,y0,x1,y1,st){const g=c.createLinearGradient(x0,y0,x1,y1);st.forEach(([o,col])=>g.addColorStop(o,col));return g;}
+function rgd(x,y,r,st){const g=c.createRadialGradient(x,y,0,x,y,r);st.forEach(([o,col])=>g.addColorStop(o,col));return g;}
+function rr(x,y,w,h,r,fill){c.beginPath();c.roundRect(x,y,w,h,r);c.fillStyle=fill;c.fill();}
+function circ(x,y,r,fill){c.beginPath();c.arc(x,y,Math.max(.1,r),0,Math.PI*2);c.fillStyle=fill;c.fill();}
+function ell(x,y,rx,ry,fill,rot=0){c.beginPath();c.ellipse(x,y,Math.max(.1,rx),Math.max(.1,ry),rot,0,Math.PI*2);c.fillStyle=fill;c.fill();}
+function poly(p,fill){c.beginPath();p.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fillStyle=fill;c.fill();}
+function line(p,w,col,cap='round'){c.beginPath();p.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.lineWidth=w;c.strokeStyle=col;c.lineCap=cap;c.lineJoin='round';c.stroke();}
+function glow(x,y,r,col,a=1){if(a<=0)return;c.save();c.globalCompositeOperation='lighter';c.globalAlpha*=a;c.fillStyle=rgd(x,y,r,[[0,col],[1,'rgba(0,0,0,0)']]);c.fillRect(x-r,y-r,2*r,2*r);c.restore();}
+function shadowE(x,y,rx,ry,a=.3){ell(x,y,rx,ry,`rgba(0,0,10,${a})`);}
+function txt(s,x,y,size,w,col,o={}){c.save();c.font=F(w,size);c.textAlign=o.align||'center';c.textBaseline=o.base||'alphabetic';c.globalAlpha*=o.a??1;c.letterSpacing=(o.ls||0)+'px';c.fillStyle=col;c.fillText(s,x,y);c.restore();}
+function tw(s,size,w){c.save();c.font=F(w,size);const m=c.measureText(s).width;c.restore();return m;}
+function heart(x,y,s,fill){c.save();c.translate(x,y);c.scale(s,s);c.beginPath();c.moveTo(0,30);c.bezierCurveTo(-60,-10,-30,-60,0,-28);c.bezierCurveTo(30,-60,60,-10,0,30);c.fillStyle=fill;c.fill();c.restore();}
+// ── backgrounds
+function bg(top,bot,seed=0,stars=1){c.fillStyle=lg(0,0,0,H,[[0,top],[1,bot]]);c.fillRect(0,0,W,H);
+  if(stars>0){for(let i=0;i<180;i++){const x=hr(i+seed*500)*W,y=hr(i*1.7+seed*300)*H*.8;const tw_=.55+.45*Math.sin(T*1.5+i);c.globalAlpha=stars*tw_*(.3+hr(i+3)*.7);circ(x,y,1+hr(i+9)*2.2,'#FFF4DE');}c.globalAlpha=1;}}
+function dust(n,seed,col,a){for(let i=0;i<n;i++){const x=(hr(i+seed)*W+T*12*(hr(i+7)-.5)*4+W)%W,y=(hr(i*2.3+seed)*H-T*10*(.3+hr(i+1))+H*4)%H;circ(x,y,1.2+hr(i+4)*2.4,col.replace('A',(a*(.3+.7*hr(i+8))).toFixed(3)));}}
+function vignette(a=.55){const g=c.createRadialGradient(W/2,H/2,H*.38,W/2,H/2,H*1.0);g.addColorStop(0,'rgba(0,0,8,0)');g.addColorStop(1,`rgba(0,0,8,${a})`);c.fillStyle=g;c.fillRect(0,0,W,H);}
+// ── people (adult, modern) feet at (0,0), facing right
+function person(o){
+  const s=o.s||1;c.save();c.translate(o.x,o.y);c.scale((o.flip?-1:1)*s,s);c.globalAlpha*=o.a??1;
+  const L=o.light;const skin=L?'#FFF6E2':(o.skin||K.skin),shirt=L?'#FFF0CC':(o.shirt||'#3C7D8C'),pants=L?'#FFE2A6':(o.pants||'#262C46'),hair=L?'#FFF6E2':(o.hair||'#2A2026');
+  if(L){glow(0,-130,300,'rgba(255,220,150,.6)',o.la??1);glow(0,-150,140,'rgba(255,248,230,.9)',o.la??1);}
+  if(!o.noShadow)shadowE(0,0,44,8,.35);
+  const pose=o.pose||'stand',walk=pose==='walk',sit=pose==='sit';const ph=(o.ph||0)+T*(o.speed||5.5);const oy=sit?48:0;
+  const leg=(x,ang)=>{c.save();c.translate(x,-92);c.rotate(ang);rr(-11,0,22,90,10,pants);ell(5,90,15,7,L?'#FFE2A6':'#1A1A24');c.restore();};
+  if(sit){rr(-16,-58,74,26,12,pants);rr(36,-56,22,58,10,pants);ell(52,2,15,7,'#1A1A24');}
+  else{const sw=walk?Math.sin(ph)*.38:0;leg(-10,sw);leg(10,-sw);}
+  if(o.robe){c.fillStyle=lg(0,-180,0,0,[[0,o.robe],[1,mixC(o.robe,'#000000',.3)]]);c.beginPath();c.moveTo(-34,-176);c.lineTo(-46,-2);c.lineTo(46,-2);c.lineTo(34,-176);c.fill();}
+  const sy=-168+oy;
+  const arm=(x0,y0,x1,y1,x2,y2)=>{line([[x0,y0],[x1,y1],[x2,y2]],17,mixC(shirt,'#000000',.15));circ(x2,y2,8.5,skin);};
+  const back=o.arms||(walk?'swing':pose);
+  if(back==='open')arm(-22,sy,-50,sy+30,-80,sy+8);
+  else if(back==='swing'){const sw=Math.sin(ph)*24;arm(-18,sy,-22-sw*.5,sy+40,-24-sw,sy+76);}
+  else if(back==='up')arm(-22,sy,-46,sy-40,-58,sy-92);
+  else arm(-20,sy,-26,sy+40,-28,sy+80);
+  c.save();c.beginPath();c.roundRect(-34,-178+oy,68,96,[26,26,12,12]);c.clip();
+  c.fillStyle=lg(0,-178+oy,0,-82+oy,[[0,shirt],[1,mixC(shirt,'#000000',.28)]]);c.fillRect(-34,-178+oy,68,96);
+  c.fillStyle='rgba(255,255,255,.10)';c.fillRect(-28,-170+oy,10,80);c.fillStyle='rgba(0,0,0,.14)';c.fillRect(22,-178+oy,12,96);
+  if(o.jacket){c.fillStyle=o.jacket;c.fillRect(-34,-178+oy,22,96);c.fillRect(12,-178+oy,22,96);}
+  if(o.tie)poly([[-5,-174+oy],[5,-174+oy],[7,-120+oy],[0,-110+oy],[-7,-120+oy]],o.tie);
+  if(o.patch)rr(-22,-130+oy,18,16,3,o.patch);
+  c.restore();
+  if(o.medal){line([[4,-174+oy],[10,-146+oy]],4,'#C8553D');circ(10,-140+oy,8,K.gold);}
+  if(o.chestLight){const p=.75+.25*Math.sin(T*2.4);glow(6,-142+oy,70*p*o.chestLight,'rgba(255,214,140,.9)');circ(6,-142+oy,7*o.chestLight,'#FFF2CE');}
+  rr(-8,-192+oy,16,16,4,skin);
+  const hp=pose==='lookup'?-.22:pose==='down'?.28:0;
+  c.save();c.translate(0,-214+oy);c.rotate(hp);
+  c.fillStyle=lg(0,-30,0,30,[[0,skin],[1,L?skin:K.skinD]]);c.beginPath();c.arc(0,0,30,0,Math.PI*2);c.fill();
+  const hs=o.hairStyle||'short';
+  if(hs==='short'){c.beginPath();c.arc(-2,-4,32,Math.PI*1.05,Math.PI*1.95);c.lineTo(28,-10);c.quadraticCurveTo(0,-18,-30,-2);c.fillStyle=hair;c.fill();}
+  if(hs==='long'){c.beginPath();c.arc(-2,-4,33,Math.PI*.95,Math.PI*1.95);c.lineTo(26,-12);c.quadraticCurveTo(-6,-20,-22,0);c.lineTo(-26,44);c.lineTo(-36,40);c.closePath();c.fillStyle=hair;c.fill();}
+  if(hs==='bun'){c.beginPath();c.arc(-2,-4,32,Math.PI*1.05,Math.PI*1.95);c.lineTo(28,-10);c.quadraticCurveTo(0,-18,-30,-2);c.fillStyle=hair;c.fill();circ(-22,-28,13,hair);}
+  if(hs==='bald'){c.fillStyle=hair;c.beginPath();c.arc(-4,4,31,Math.PI*.7,Math.PI*1.1);c.lineTo(-24,0);c.fill();}
+  if(o.beard){c.beginPath();c.moveTo(-18,6);c.quadraticCurveTo(-10,34,8,32);c.quadraticCurveTo(28,26,28,4);c.quadraticCurveTo(6,16,-18,6);c.fillStyle=o.beard;c.fill();}
+  if(o.glasses){c.strokeStyle='#1A1A24';c.lineWidth=2.5;c.strokeRect(1,-10,13,9);c.strokeRect(18,-10,12,9);}
+  if(!L){const ex=o.look??4;ell(8+ex,-5,3.4,4.6,'#161320');ell(22+ex,-5,3.2,4.4,'#161320');
+    c.strokeStyle=mixC(hair,'#000000',.1);c.lineWidth=3;c.lineCap='round';c.beginPath();c.moveTo(3+ex,-14+(o.brow||0));c.lineTo(12+ex,-15);c.moveTo(18+ex,-15);c.lineTo(27+ex,-14+(o.brow||0));c.stroke();
+    const m=o.mouth||'flat';c.strokeStyle='#5A3A3A';c.lineWidth=2.6;c.beginPath();if(m==='smile')c.arc(16+ex,8,6,.15*Math.PI,.85*Math.PI);else if(m==='frown')c.arc(16+ex,15,6,1.15*Math.PI,1.85*Math.PI);else{c.moveTo(11+ex,11);c.lineTo(21+ex,11);}c.stroke();}
+  c.restore();
+  const front=o.arms||(walk?'swing':pose);
+  if(front==='open')arm(22,sy,50,sy+30,80,sy+8);
+  else if(front==='swing'){const sw=Math.sin(ph)*24;arm(18,sy,22+sw*.5,sy+40,24+sw,sy+76);}
+  else if(front==='up')arm(22,sy,46,sy-40,58,sy-92);
+  else if(front==='reach')arm(22,sy,58,sy+8,96,sy-6);
+  else if(front==='point')arm(22,sy,60,sy-6,100,sy-26);
+  else if(front==='hold')arm(22,sy,40,sy+36,64,sy+30);
+  else arm(20,sy,26,sy+40,28,sy+80);
+  if(o.book){rr(54,sy+12,30,38,3,'#5A2E2A');c.fillStyle='#E9D9B8';c.fillRect(57,sy+15,3,32);}
+  c.restore();
+}
+function bust(x,y,r,o){c.save();c.translate(x,y);
+  if(o.lit)glow(0,0,r*2.4,'rgba(255,214,140,.55)',o.lit);
+  circ(0,0,r,o.bg||'rgba(255,255,255,.06)');c.save();c.beginPath();c.arc(0,0,r,0,Math.PI*2);c.clip();
+  ell(0,r*.95,r*.8,r*.55,o.shirt||K.teal);circ(0,-r*.12,r*.42,o.skin||K.skin);c.beginPath();c.arc(0,-r*.2,r*.44,Math.PI,0);c.fillStyle=o.hair||'#2A2026';c.fill();c.restore();
+  c.strokeStyle=o.ring||'rgba(255,255,255,.18)';c.lineWidth=3;c.beginPath();c.arc(0,0,r,0,Math.PI*2);c.stroke();c.restore();}
+// ── UI: chapter header, quote cards, captions, callouts
+function chapter(n,title,u){
+  const a=eSine(prog(u,0,.6)),m=eIO(prog(u,1.7,2.4));if(a<=0)return;
+  const x=lerp(W/2,110,m),y=lerp(H/2-20,96,m),s=lerp(1,.42,m);
+  c.save();c.globalAlpha=a;c.translate(x,y);c.scale(s,s);c.textAlign=m>.5?'left':'center';
+  const al=c.textAlign;const ox=al==='left'?0:0;
+  if(m<1){c.fillStyle=`rgba(4,6,16,${.55*(1-m)})`;c.fillRect(-W,-H,W*3,H*3);}
+  c.font=F(800,120);c.fillStyle=K.gold;c.textAlign=al;c.fillText(n,ox,-10);
+  c.font=F(700,72);c.fillStyle=K.cream;c.fillText(title,ox,90);
+  c.fillStyle=K.gold;const lw=320*eOut(prog(u,.3,1.1));c.fillRect(al==='left'?0:-lw/2,120,lw,4);
+  c.restore();
+}
+function quote(lines,attr,x,y,w,a,o={}){
+  if(a<=0)return;const size=o.size||38,lh=size*1.42;const h=44+lines.length*lh+(attr?48:6);
+  c.save();c.globalAlpha=a;c.translate(0,(1-a)*16);
+  rr(x,y,w,h,18,'rgba(8,10,26,.82)');rr(x,y,8,h,[18,0,0,18],K.gold);
+  c.font=F(600,size);c.fillStyle=K.cream;c.textAlign='left';c.textBaseline='alphabetic';
+  lines.forEach((l,i)=>{c.fillText(l,x+44,y+30+size+i*lh);});
+  if(attr){c.font=F(600,24);c.fillStyle=K.gold;c.fillText(attr,x+44,y+h-26);}
+  c.restore();return h;
+}
+function caption(s,a,y=995){if(a<=0)return;c.save();c.globalAlpha=a;c.font=F(600,34);const w=c.measureText(s).width+72;rr(W/2-w/2,y-36,w,72,36,'rgba(8,10,26,.78)');
+  c.fillStyle=K.cream;c.textAlign='center';c.textBaseline='middle';c.fillText(s,W/2,y+1);c.restore();}
+function callout(px,py,dx,dy,t1,t2,a){if(a<=0)return;c.save();c.globalAlpha=a;const ex=px+dx*a,ey=py+dy*a;
+  circ(px,py,7,K.cream);line([[px,py],[ex,ey]],2.5,K.cream);c.font=F(700,30);const w1=c.measureText(t1).width;c.font=F(500,22);const w2=t2?c.measureText(t2).width:0;const w=Math.max(w1,w2)+40,h=t2?84:56;
+  const bx=dx<0?ex-w:ex,by=ey-h/2;rr(bx,by,w,h,14,'rgba(8,10,26,.85)');c.textAlign='left';c.textBaseline='middle';c.fillStyle=K.cream;c.font=F(700,30);c.fillText(t1,bx+20,by+(t2?28:29));
+  if(t2){c.font=F(500,22);c.fillStyle=K.mute;c.fillText(t2,bx+20,by+60);}c.restore();}
+function stamp(x,y,txt_,a,rot=-.12){if(a<=0)return;const s=lerp(1.6,1,eOut(a));c.save();c.globalAlpha=clamp(a*1.5);c.translate(x,y);c.rotate(rot);c.scale(s,s);
+  c.strokeStyle=K.red;c.lineWidth=6;c.font=F(800,34);const w=c.measureText(txt_).width+48;c.strokeRect(-w/2,-34,w,68);c.fillStyle=K.red;c.textAlign='center';c.textBaseline='middle';c.fillText(txt_,0,2);c.restore();}
+// ── props
+function planet(cx,cy,r,top,bot,u){
+  glow(cx,cy-r,r*.9,'rgba(120,150,255,.12)');
+  c.fillStyle=lg(0,cy-r,0,cy+r*.2,[[0,top],[1,bot]]);c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fill();
+  c.strokeStyle='rgba(160,190,255,.25)';c.lineWidth=10;c.beginPath();c.arc(cx,cy,r+6,Math.PI*1.15,Math.PI*1.85);c.stroke();
+  for(let i=0;i<9;i++){const a=-Math.PI/2+(i-4)*.13+(hr(i)-.5)*.04;const x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r;c.save();c.translate(x,y);c.rotate(a+Math.PI/2);
+    if(i%3===1){rr(-26,-60,52,60,4,mixC(bot,'#000000',.2));poly([[-32,-60],[0,-86],[32,-60]],mixC(bot,'#000000',.3));rr(-8,-44,16,18,2,`rgba(255,200,120,${.6+.2*Math.sin(T*3+i)})`);}
+    else{rr(-4,-54,8,54,3,mixC(bot,'#000000',.35));circ(0,-66-hr(i)*10,22+hr(i+2)*10,mixC(top,'#000000',.15));}
+    c.restore();}
+}
+function goldenCity(x,y,s,a){if(a<=0)return;c.save();c.globalAlpha*=a;c.translate(x,y);c.scale(s,s);glow(0,-40,420,'rgba(255,210,130,.45)');
+  ell(0,40,330,60,'#E9EEF8');ell(-180,46,140,40,'#DDE3F2');ell(190,48,150,40,'#DDE3F2');
+  [[-210,90,150],[-120,120,220],[-30,150,300],[60,110,240],[150,90,170],[230,70,120]].forEach(([dx,w,h])=>{rr(dx-w/4,-h+20,w/2,h,[18,18,0,0],'#F5D28A');c.fillStyle='rgba(180,120,40,.25)';c.fillRect(dx+w/4-12,-h+20,12,h);circ(dx,-h+20,w/4,'#FFE3A6');
+    for(let k=0;k<Math.floor(h/60);k++)rr(dx-8,-h+60+k*56,16,26,[8,8,0,0],'rgba(160,100,40,.4)');});
+  c.restore();}
+function wormhole(x,y,r,a,u){if(a<=0)return;c.save();c.globalAlpha*=a;c.translate(x,y);for(let k=8;k>=0;k--){c.save();c.rotate(u*(.6+k*.1));c.scale(1,.45);c.strokeStyle=mixC('#7B5CC9','#E9D9FF',k/8);c.globalAlpha=a*(.25+k*.08);c.lineWidth=10-k*.6;c.beginPath();c.arc(0,0,r*(1-k*.1),0,Math.PI*1.6);c.stroke();c.restore();}
+  ell(0,0,r*.25,r*.11,'#0A0618');c.restore();}
+function hills(baseY,cols,seed){cols.forEach((col,i)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,H);for(let x=0;x<=W;x+=40)c.lineTo(x,baseY+i*70+Math.sin(x*.004+seed+i*1.7)*40+Math.sin(x*.011+i)*14);c.lineTo(W,H);c.fill();});}
+function flower(x,y,s,col){line([[x,y],[x,y-26*s]],3,'#5C9A6A');for(let k=0;k<5;k++){const a=k/5*Math.PI*2;circ(x+Math.cos(a)*7*s,y-26*s+Math.sin(a)*7*s,5*s,col);}circ(x,y-26*s,4*s,K.goldL);}
+function key(x,y,lbl,col,a,rot=0){if(a<=0)return;c.save();c.globalAlpha*=a;c.translate(x,y);c.rotate(rot);c.strokeStyle=col;c.lineWidth=10;c.beginPath();c.arc(-46,0,20,0,Math.PI*2);c.stroke();rr(-26,-5,80,10,4,col);rr(36,0,8,18,2,col);rr(48,0,8,14,2,col);c.restore();
+  c.save();c.globalAlpha*=a;c.font=F(700,24);const w=c.measureText(lbl).width+28;rr(x-w/2,y-66,w,40,20,'rgba(8,10,26,.85)');c.fillStyle=K.cream;c.textAlign='center';c.textBaseline='middle';c.fillText(lbl,x,y-45);c.restore();}
+
+// ═════════════ SCENES
+let T=0;
+function sIntro(u){
+  bg(K.night0,'#1A2142',1,1);
+  const push=1+.06*eSine(prog(u,0,7.5));c.save();c.translate(W/2,H/2);c.scale(push,push);c.translate(-W/2,-H/2);
+  glow(1450,380,500,'rgba(90,110,200,.18)');
+  // question-mark constellation
+  const Q=[[1340,250],[1410,205],[1495,215],[1545,275],[1530,345],[1470,395],[1445,455],[1445,520]];const dot_=[1445,600];
+  const lp=prog(u,.9,3.0);const n=Q.length-1;
+  for(let i=0;i<n;i++){const p=clamp(lp*n-i);if(p<=0)break;line([Q[i],[lerp(Q[i][0],Q[i+1][0],p),lerp(Q[i][1],Q[i+1][1],p)]],2.5,'rgba(255,236,200,.55)');}
+  [...Q,dot_].forEach(([x,y],i)=>{const a=prog(u,.6+i*.12,.9+i*.12);glow(x,y,34,'rgba(255,230,180,.8)',a);circ(x,y,i===Q.length?8:5,`rgba(255,246,226,${a})`);});
+  planet(W/2+60,H+560,900,'#2C3E6B','#141C38',u);
+  person({x:W/2+90,y:H+560-900+6,s:1.05,pose:'sit',arms:'stand',shirt:'#3A6F7C',pants:'#2A2E48',hair:'#2B2128',hairStyle:'short',look:5,brow:-1});
+  c.restore();
+  const ta=env(u,1.9,7.5,.9);
+  txt('동성애자인데',150,350,92,800,K.cream,{align:'left',a:ta});txt('천국 갈 수 있을까요?',150,460,92,800,K.cream,{align:'left',a:ta});
+  txt('한 사람의 존재와 정체성, 그리고 소망이 걸린 질문',154,530,32,500,K.mute,{align:'left',a:env(u,2.6,7.5,.9)});
+  caption('근거들은 이 질문을 "천국은 무엇이며, 누가 어떻게 들어가는가"로 이끕니다',env(u,4.0,7.4));
+  vignette();
+}
+function s1(u){
+  const A=1-eSine(prog(u,4.4,5.4));
+  bg(mixC('#101632','#0F1A2E',1-A),mixC('#2B3A66','#203A4A',1-A),2,.8);
+  if(A>0){c.save();c.globalAlpha=A;
+    goldenCity(W/2+120,300-8*Math.sin(u*.8),.9,eSine(prog(u,.6,1.8)));
+    callout(W/2+330,250,170,-60,'죽어서 가는 공간?',null,env(u,1.4,4.6));
+    wormhole(W/2-120,640,190,eSine(prog(u,1.2,2.2)),u);
+    callout(W/2-280,640,-160,-80,'천국으로 가는 지름길?','웜홀 같은 영생',env(u,1.8,4.6));
+    hills(860,['#16213D','#111A30'],1);
+    person({x:W/2-420,y:900,s:1,pose:'lookup',shirt:'#3A6F7C',hair:'#2B2128',look:6});
+    stamp(W/2-120,800,'거짓 복음 — 황주 [2]',prog(u,3.2,3.7));
+    if(u>3.0){const p=eOut(prog(u,3.0,3.4));line([[W/2-260,560],[lerp(W/2-260,W/2+20,p),lerp(560,720,p)]],12,K.red);line([[W/2+20,560],[lerp(W/2+20,W/2-260,p),lerp(560,720,p)]],12,K.red);}
+    c.restore();}
+  const B=eSine(prog(u,4.6,5.6));
+  if(B>0){c.save();c.globalAlpha=B;
+    glow(W*.7,260,700,'rgba(255,210,140,.18)');
+    hills(620,['#20385A','#1A2E4A','#15243C'],4);
+    // path
+    const P=x=>[x,880-Math.sin(x*.003)*60-x*.06];
+    c.fillStyle='#D8C9A8';c.beginPath();for(let x=-50;x<=W+50;x+=30){const [px,py]=P(x);x===-50?c.moveTo(px,py-14):c.lineTo(px,py-14);}for(let x=W+50;x>=-50;x-=30){const [px,py]=P(x);c.lineTo(px,py+14);}c.fill();
+    const wx=lerp(260,1380,eSine(prog(u,5.0,10.4)));
+    for(let i=0;i<46;i++){const fx=60+i*30;if(fx>wx-40)break;const [px,py]=P(fx);const g=eOut(prog(wx-fx,0,160));flower(px+(i%2?-30:30),py+(i%2?-18:22),g*(.8+hr(i)*.5),[K.rose,K.goldL,'#B8A6E8',K.teal][i%4]);
+      if(i%3===0){const gx=px+(i%2?40:-40);line([[gx,py+30],[gx-6,py+30-24*g]],4,'#4E8A5E');line([[gx,py+30],[gx+8,py+30-20*g]],4,'#5C9A6A');}}
+    const [lx,ly]=P(wx+150),[qx,qy]=P(wx);
+    person({x:lx,y:ly-6,s:1.02,light:1,pose:'walk',ph:1});
+    person({x:qx,y:qy,s:1.0,pose:'walk',shirt:'#3A6F7C',hair:'#2B2128',look:6,ph:0,chestLight:eSine(prog(u,6,8))});
+    dust(30,9,'rgba(255,230,180,A)',.5);
+    quote(['예수님은 천국 가는 길이 아니에요.','예수님 자체가 천국이기 때문이죠.'],'황주 목사 [2][3]',110,170,760,env(u,5.6,8.7));
+    callout(qx,qy-250,-180,-110,'"지금 오늘 천국의 삶을 살아가고 있기 때문"','김진수 선교사 [7]',env(u,7.0,9.9));
+    const qa=env(u,8.6,10.6,.4);if(qa>0){c.save();c.globalAlpha=qa;
+      txt('나는 천국에 갈 수 있는가?',W/2,190,56,700,K.mute);const sw=tw('나는 천국에 갈 수 있는가?',56,700);const sp=eOut(prog(u,9.0,9.4));c.fillStyle=K.red;c.fillRect(W/2-sw/2,172,sw*sp,5);
+      txt('예수님이 나의 천국이신가?',W/2,280,72,800,K.gold,{a:eSine(prog(u,9.3,9.9))});c.restore();}
+    c.restore();}
+  chapter('01','천국은 무엇인가',u);vignette();
+}
+function s2(u){
+  bg('#121831','#2A2340',3,.5);
+  // wall + gate
+  const op=eIO(prog(u,5.8,7.2));
+  glow(W/2,640,700*op+10,'rgba(255,220,150,.75)',op);
+  c.fillStyle=lg(0,240,0,960,[[0,K.stoneL],[1,K.stone]]);c.fillRect(0,250,W,710);
+  c.strokeStyle='rgba(0,0,0,.25)';c.lineWidth=3;for(let r=0;r<9;r++){const y=250+r*80;c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();for(let k=0;k<14;k++){const x=k*150+(r%2)*75;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+80);c.stroke();}}
+  for(let k=0;k<26;k++)rr(k*76,214,52,44,4,K.stoneL);
+  // gate opening
+  const gx=W/2,gw=380,gy=390,gh=570;
+  c.fillStyle=lg(0,gy,0,gy+gh,[[0,'#FFF4D8'],[1,'#FFD58A']]);c.beginPath();c.moveTo(gx-gw/2,gy+gh);c.lineTo(gx-gw/2,gy+gw/2);c.arc(gx,gy+gw/2,gw/2,Math.PI,0);c.lineTo(gx+gw/2,gy+gh);c.fill();
+  const leaf=(sd)=>{const w=gw/2*(1-op*.92);c.save();c.beginPath();c.moveTo(gx-gw/2,gy+gh);c.lineTo(gx-gw/2,gy+gw/2);c.arc(gx,gy+gw/2,gw/2,Math.PI,0);c.lineTo(gx+gw/2,gy+gh);c.clip();
+    const x0=sd<0?gx-gw/2:gx+gw/2-w;c.fillStyle=lg(x0,0,x0+w,0,[[0,'#4A3428'],[1,'#36251C']]);c.fillRect(x0,gy,w,gh);
+    for(let r=0;r<5;r++)for(let k=0;k<2;k++)circ(x0+w*(.3+k*.4),gy+120+r*100,6,'#8A7A60');c.restore();};
+  leaf(-1);leaf(1);
+  if(op<.05){circ(gx,700,16,'#14100E');poly([[gx-8,704],[gx+8,704],[gx+4,736],[gx-4,736]],'#14100E');glow(gx,706,60,'rgba(255,220,150,.4)',.5+.5*Math.sin(u*3));}
+  // ground
+  c.fillStyle=lg(0,940,0,H,[[0,'#1E1A30'],[1,'#120F20']]);c.fillRect(0,940,W,140);
+  // people with keys
+  const P=[{x:gx-620,lbl:'도덕적 완벽함',o:{robe:'#4A4E6E',shirt:'#4A4E6E',hairStyle:'bald',hair:'#5A5050',beard:'#6A6060',book:1}},
+           {x:gx-360,lbl:'지위',o:{shirt:'#3E4A6A',jacket:'#2A3250',tie:K.red,medal:1,hairStyle:'short',hair:'#3A3030',glasses:1}},
+           {x:gx+360,lbl:'부',o:{shirt:'#2A2A38',jacket:'#1C1C28',tie:K.gold,hairStyle:'short',hair:'#7A6A5A'},flip:1},
+           {x:gx+620,lbl:'정체성',o:{shirt:'#3A6F7C',hairStyle:'short',hair:'#2B2128'},flip:1}];
+  P.forEach((p,i)=>{const lit=op;person({x:p.x,y:960,s:1,flip:p.flip,pose:'stand',arms:i===0?'hold':'stand',look:4,brow:lit>.5?0:1,mouth:'flat',...p.o});
+    if(lit>0)glow(p.x,800,180,'rgba(255,220,150,.35)',lit);
+    // key attempt
+    const t0=1.6+i*1.0,go=eIO(prog(u,t0,t0+.4)),wig=prog(u,t0+.4,t0+.75),fall=eIO(prog(u,t0+.75,t0+1.05));
+    const hx=p.x+(p.flip?-60:60),hy=830;const kx=lerp(hx,gx-(p.flip?-70:70),go),ky=lerp(hy,706,go)+fall*230;
+    const rot=(p.flip?Math.PI:0)+Math.sin(wig*Math.PI*6)*.12*(1-fall)+fall*1.2;
+    key(kx,ky,p.lbl,mixC('#C9B27A','#7A7A88',fall),u<t0?1:1-fall*.75,rot);
+    if(wig>0&&fall<1){const fa=Math.sin(wig*Math.PI)*.8;txt('✕',gx,640,64,900,K.red,{a:fa});}});
+  quote(['사람으로는 할 수 없으나','하나님으로서는 다 하실 수 있느니라'],'마태복음 19:26 — 본회퍼 인용 [10]',W/2-430,70,860,env(u,6.3,9.8),{size:42});
+  // checklist
+  const ca=env(u,8.4,11.4);if(ca>0){c.save();c.globalAlpha=ca;const x=1360,y=250;rr(x,y,470,420,20,'rgba(8,10,26,.9)');txt('구원의 조건',x+40,y+66,40,800,K.cream,{align:'left'});
+    [['도덕적 완벽함',0],['특정한 정체성',0],['특정한 지위',0],['예수 그리스도',1]].forEach(([s,ok],i)=>{const a=prog(u,8.6+i*.25,8.9+i*.25);c.globalAlpha=ca*a;
+      txt(ok?'✓':'✕',x+50,y+140+i*62,36,900,ok?K.gold:K.red,{align:'left'});txt(s,x+100,y+140+i*62,32,ok?800:600,ok?K.gold:K.mute,{align:'left'});
+      if(!ok){c.fillStyle=K.mute;c.fillRect(x+100,y+128+i*62,tw(s,32,600),3);}});
+    c.globalAlpha=ca*prog(u,9.8,10.2);txt('성적 지향은 이 목록에 없습니다',x+40,y+392,28,700,K.cream,{align:'left'});c.restore();}
+  chapter('02','구원의 조건',u);vignette();
+}
+function s3(u){
+  bg('#140F26','#2E2347',5,.6);
+  const tk=1-eSine(prog(u,3.0,4.0));
+  if(tk>0){c.save();c.globalAlpha=tk;c.translate(W/2,500);c.rotate(Math.sin(u*.9)*.05-.06);const sc=eSine(prog(u,.6,1.6));c.scale(sc,sc);
+    glow(0,0,380,'rgba(255,200,110,.35)');rr(-330,-130,660,260,22,'#E8B85A');rr(-310,-110,620,220,16,'#F5D28A');
+    for(let k=0;k<9;k++)circ(150,-100+k*25,6,'#E8B85A');c.fillStyle='rgba(120,70,20,.6)';c.font=F(800,64);c.textAlign='center';c.textBaseline='middle';c.fillText('천국행 티켓',-60,-12);
+    c.font=F(600,26);c.fillText('ADMIT ONE',-60,52);c.restore();
+    callout(W/2+120,620,240,120,'예수님 = 천국에 가는 수단?',null,env(u,1.2,3.4));
+    stamp(W/2-40,500,'번영신학적 오류 — 황주 [5]',prog(u,2.0,2.5)*tk,.1);}
+  // particles converge to heart
+  const cv_=prog(u,3.0,4.2);if(cv_>0&&cv_<1){for(let i=0;i<70;i++){const sx=W/2+(hr(i)-.5)*660,sy=500+(hr(i+9)-.5)*260;const p=eIO(cv_);circ(lerp(sx,W/2,p),lerp(sy,640,p),3+hr(i+2)*3,'rgba(255,220,150,.85)');}}
+  const nw=eSine(prog(u,3.8,4.6));
+  if(nw>0){c.save();c.globalAlpha=nw;const cx=W/2,cy=650;
+    glow(cx,0,900,'rgba(255,220,150,.25)',nw);c.fillStyle='rgba(255,226,170,.12)';poly([[cx-60,0],[cx+60,0],[cx+120,cy],[cx-120,cy]],c.fillStyle);
+    const R1=[],R2=[];for(let i=0;i<6;i++){const a=i/6*Math.PI*2+.3;R1.push([cx+Math.cos(a)*250,cy+Math.sin(a)*150]);}for(let i=0;i<12;i++){const a=i/12*Math.PI*2+.1;R2.push([cx+Math.cos(a)*470,cy+Math.sin(a)*235]);}
+    const p1=prog(u,4.8,6.2),p2=prog(u,6.0,7.6);
+    R1.forEach(([x,y],i)=>{const p=clamp(p1*1.4-i*.07);line([[cx,cy],[lerp(cx,x,p),lerp(cy,y,p)]],3,`rgba(255,214,140,${.7*p})`);});
+    R2.forEach(([x,y],i)=>{const [sx,sy]=R1[Math.floor(i/2)];const p=clamp(p2*1.4-i*.05);line([[sx,sy],[lerp(sx,x,p),lerp(sy,y,p)]],2.5,`rgba(255,214,140,${.55*p})`);});
+    // pulses
+    if(p1>0)R1.forEach(([x,y],i)=>{const q=(u*.6+i/6)%1;circ(lerp(cx,x,q),lerp(cy,y,q),5,`rgba(255,240,200,${p1})`);});
+    const shirts=['#3A6F7C','#7A4A6A','#4A6A3A','#6A5A3A','#3A4A7A','#7A3A3A','#5A5A6A','#3A6A6A'],hairs=['#2B2128','#6A4A2A','#1A1A1A','#8A7A6A'];
+    R2.forEach(([x,y],i)=>bust(x,y,40,{shirt:shirts[i%8],hair:hairs[i%4],skin:[K.skin,'#C98A62','#8A5A3A','#F0C8A8'][i%4],lit:clamp(p2*1.4-i*.05-.4),ring:'rgba(255,214,140,.3)'}));
+    R1.forEach(([x,y],i)=>bust(x,y,52,{shirt:shirts[(i+3)%8],hair:hairs[(i+1)%4],skin:[K.skin,'#C98A62','#8A5A3A','#F0C8A8'][(i+2)%4],lit:clamp(p1*1.4-i*.07-.3),ring:'rgba(255,214,140,.4)'}));
+    bust(cx,cy,74,{shirt:'#3A6F7C',hair:'#2B2128',lit:1,ring:K.gold});heart(cx,cy+86,.5+.05*Math.sin(u*3),'#FFD9A0');
+    c.restore();}
+  quote(['하나님이 나를 사랑해 주셨기 때문에 그 사랑에 보답하여','나도 다른 사람들을 자유롭게 사랑하기 위해 구원 받는 것입니다.'],'황주 목사 [5]',W/2-560,60,1120,env(u,4.4,8.3),{size:34});
+  caption('복음의 결과도 사랑이고, 진리의 결론도 사랑입니다 [5]',env(u,6.6,9.0));
+  chapter('03','구원의 목적',u);vignette();
+}
+function s4(u){
+  const A=1-eSine(prog(u,6.8,7.6));
+  if(A>0){c.save();c.globalAlpha=A;
+    c.fillStyle=lg(0,0,0,H,[[0,'#2A2236'],[1,'#3A2C3A']]);c.fillRect(0,0,W/2,H);glow(W*.25,H*.45,700,'rgba(255,200,130,.18)');
+    c.fillStyle=lg(0,0,0,H,[[0,'#151A26'],[1,'#1C2230']]);c.fillRect(W/2,0,W/2,H);
+    c.fillStyle='rgba(255,255,255,.15)';c.fillRect(W/2-1,170,2,840);
+    txt('천국의 모습',W*.25,230,48,800,K.gold,{a:eSine(prog(u,1.2,1.8))});txt('지옥의 모습',W*.75,230,48,800,K.cold,{a:eSine(prog(u,1.2,1.8))});
+    const rows=[{y:400,lbl:'말',L:'살리고 세우는 말 [2]',R:'죽이고 불평하는 말 [2][3]'},{y:610,lbl:'태도',L:'자비 · 은혜 · 오래 참음 [2]',R:'찡그림 · 화냄 [2]'},{y:820,lbl:'관계',L:'용서하고 사랑함 [5]',R:'억압 · 비인격적 대우 [3]'}];
+    rows.forEach((r,i)=>{const a=eSine(prog(u,1.6+i*1.0,2.2+i*1.0));if(a<=0)return;c.save();c.globalAlpha=A*a;
+      rr(W/2-60,r.y-30,120,60,30,'rgba(8,10,26,.9)');txt(r.lbl,W/2,r.y+12,32,800,K.cream);
+      const g=prog(u,1.9+i*1.0,3.0+i*1.0);
+      if(i===0){bust(W*.12,r.y,58,{shirt:'#3A6F7C',hair:'#2B2128'});rr(W*.17,r.y-80,200,90,40,K.cream);poly([[W*.17+20,r.y],[W*.17,r.y+30],[W*.17+50,r.y+6]],K.cream);
+          for(let k=0;k<3;k++){const gx=W*.17+60+k*50;line([[gx,r.y-80],[gx,r.y-80-60*g]],5,'#5C9A6A');ell(gx-10,r.y-80-50*g,14*g,7*g,'#6DB07A',-.5);ell(gx+10,r.y-80-62*g,14*g,7*g,'#6DB07A',.5);}
+          bust(W*.62,r.y,58,{shirt:'#3A3F55',hair:'#2B2128'});c.fillStyle='#6A7290';c.beginPath();for(let k=0;k<=12;k++){const a=k/12*Math.PI*2,rr_=k%2?44:60;c.lineTo(W*.72+60+Math.cos(a)*rr_*1.6,r.y-40+Math.sin(a)*rr_*.8);}c.fill();
+          for(let k=0;k<4;k++)line([[W*.72+10+k*30,r.y-40],[W*.72+18+k*30,r.y-40+30*g]],4,'#2A2E40');}
+      if(i===1){person({x:W*.14,y:r.y+110,s:.62,pose:'stand',arms:'open',shirt:'#3A6F7C',hair:'#2B2128',mouth:'smile',look:4});glow(W*.14,r.y,120,'rgba(255,210,140,.4)',g);
+          person({x:W*.62,y:r.y+110,s:.62,pose:'stand',shirt:'#3A3F55',hair:'#2B2128',mouth:'frown',brow:4,look:4});for(let k=0;k<3;k++){const q=(u*1.2+k/3)%1;circ(W*.62-20+k*20,r.y-60-q*50,6+q*8,`rgba(150,160,190,${.6*(1-q)})`);}}
+      if(i===2){person({x:W*.1,y:r.y+110,s:.62,pose:'stand',arms:'reach',shirt:'#3A6F7C',hair:'#2B2128',mouth:'smile'});person({x:W*.1+130,y:r.y+110,s:.62,flip:1,pose:'stand',arms:'reach',shirt:'#7A4A6A',hair:'#6A4A2A',hairStyle:'long',mouth:'smile'});heart(W*.1+65,r.y-50,.35,K.rose);
+          person({x:W*.58,y:r.y+110,s:.86,pose:'stand',arms:'point',shirt:'#3A3F55',hair:'#1A1A1A',mouth:'frown',brow:4});person({x:W*.58+140,y:r.y+110,s:.48,flip:1,pose:'down',shirt:'#5A5A6A',hair:'#2B2128'});}
+      txt(r.L,W*.25+140,r.y+70,26,600,K.cream,{align:'left'});txt(r.R,W*.75+120,r.y+70,26,600,K.mute,{align:'left'});
+      c.restore();});
+    const qa=env(u,4.6,7.2);if(qa>0){c.fillStyle=`rgba(4,6,16,${.6*qa})`;c.fillRect(0,0,W,H);}
+    quote(['천국의 모습이 나왔습니까?','아니면 지옥의 모습이 나왔습니까?'],'황주 목사 [2]',W/2-430,360,860,qa,{size:48});
+    caption('"천국이 저런 것하고 비슷하다면 나는 노 땡큐" — 교회 안에서부터 천국이 보여야 합니다 · 조문길 [8]',env(u,5.0,7.2));
+    c.restore();}
+  const B=eSine(prog(u,7.0,7.8));
+  if(B>0){c.save();c.globalAlpha=B;bg('#121A2A','#24304A',6,.6);c.globalAlpha=B;
+    c.fillStyle='#2A1E1A';c.fillRect(0,880,W,200);c.fillStyle='#3A2A22';c.fillRect(0,872,W,14);
+    const sx=W*.33;const sf=eIO(prog(u,7.4,7.9));circ(sx,lerp(420,866,sf),7,'#C9A86A');
+    const gr=eOut(prog(u,7.9,10.0));
+    if(gr>0){line([[sx,872],[sx-8,872-380*gr]],26*gr+4,'#5A3E2E');
+      [[-1,.55],[1,.62],[-1,.8],[1,.88]].forEach(([d,h],k)=>{const p=clamp(gr*1.6-k*.18);if(p<=0)return;line([[sx-4,872-380*gr*h],[sx-4+d*170*p,872-380*gr*h-90*p]],12*p,'#5A3E2E');});
+      for(let k=0;k<26;k++){const p=clamp(gr*1.5-.4-hr(k)*.3);if(p<=0)continue;const a=hr(k+3)*Math.PI,r=60+hr(k+5)*200;circ(sx+Math.cos(a)*r*1.1,872-380*gr-30+(-Math.sin(a))*r*.55+60,(30+hr(k)*24)*p,[ '#3E7A52','#4E8A5E','#5C9A6A'][k%3]);}
+      if(u>9.6)for(let k=0;k<3;k++){const p=eOut(prog(u,9.6+k*.2,10.4+k*.2));const bx=lerp(W*.05+k*80,sx-120+k*110,p),by=lerp(200+k*40,872-380*gr-80-hr(k)*60,p);line([[bx-14,by-6*Math.sin(u*14+k)*(1-p)],[bx,by],[bx+14,by-6*Math.sin(u*14+k)*(1-p)]],4,'#1A1A24');}}
+    txt('겨자씨',sx,960,34,800,K.cream,{a:prog(u,7.6,8.0)});
+    const bx=W*.68,rise=eSine(prog(u,8.0,10.2));
+    ell(bx,850,200,26,'#5A3E2E');c.fillStyle='#7A5A3E';c.beginPath();c.moveTo(bx-200,850);c.lineTo(bx-150,720);c.lineTo(bx+150,720);c.lineTo(bx+200,850);c.fill();
+    c.fillStyle='#EAD9B4';c.beginPath();c.ellipse(bx,720,150,30+rise*90,0,Math.PI,0);c.fill();ell(bx-40,720-rise*70,40*rise,10*rise,'rgba(255,255,255,.3)');
+    for(let k=0;k<5;k++)circ(bx-80+k*40,720-rise*(40+hr(k)*40),5*rise,'rgba(200,180,140,.8)');
+    txt('누룩',bx,960,34,800,K.cream,{a:prog(u,7.6,8.0)});
+    quote(['세상의 눈에는 가치 없어 보일 수 있지만','실제로는 그 무엇보다 소중하고 중요한 곳'],'천국은 겨자씨와 누룩 같으니 — 이용민 목사 [6]',W/2-460,90,920,env(u,8.2,11.2),{size:38});
+    c.restore();}
+  chapter('04','삶의 열매',u);vignette();
+}
+function s5(u){
+  bg('#120E22','#262040',7,.7);
+  const A=1-eSine(prog(u,4.2,5.0));
+  if(A>0){c.save();c.globalAlpha=A;
+    const x0=260,x1=W-260,y0=330,y1=800,n=12,m=22;
+    for(let i=0;i<n;i++){const y=y0+i*(y1-y0)/(n-1);const p=eOut(prog(u,.6+i*.05,1.6+i*.05));line([[x0,y],[lerp(x0,x1,p),y]],10,['#4A3E6A','#5A4A7A','#3E5A6A'][i%3],'butt');}
+    for(let k=0;k<m;k++){const x=x0+20+k*(x1-x0-40)/(m-1);const p=prog(u,1.4+k*.07,2.0+k*.07);if(p<=0)continue;const yy=lerp(y0-20,y1+20,p);
+      c.beginPath();c.moveTo(x,y0-20);c.lineTo(x,yy);c.lineWidth=9;c.strokeStyle=k%4===0?K.gold:'#C9A86A';c.stroke();
+      for(let i=0;i<n;i++){const y=y0+i*(y1-y0)/(n-1);if(y>yy)break;if((i+k)%2)line([[x-16,y],[x+16,y]],10,['#4A3E6A','#5A4A7A','#3E5A6A'][i%3],'butt');}}
+    glow(W/2,560,420,'rgba(255,210,140,.2)',prog(u,2,3));
+    person({x:W/2,y:1060,s:1.25,pose:'lookup',shirt:'#3A6F7C',hair:'#2B2128',chestLight:1.4,noShadow:1});
+    quote(['천국의 교리는 기독교 전체를 엮고 있는','씨줄과 날줄이기 때문입니다.'],'C. S. 루이스 [1]',W/2-470,70,940,env(u,1.0,4.6),{size:38});
+    caption('우리는 평생 천국 외에 다른 것을 갈망해 본 적이 없습니다 — C. S. 루이스 [4]',env(u,2.4,4.6));
+    c.restore();}
+  const B=eSine(prog(u,4.4,5.2));
+  if(B>0){c.save();c.globalAlpha=B;
+    const px=W/2,py=520,tilt=eIO(prog(u,5.8,7.2))*.24;
+    poly([[px-120,980],[px+120,980],[px+30,py],[px-30,py]],'#3A3458');rr(px-170,960,340,40,10,'#2E2A48');circ(px,py,22,K.gold);
+    c.save();c.translate(px,py);c.rotate(tilt);rr(-480,-10,960,20,10,'#C9A86A');
+    [[-450,0],[450,1]].forEach(([dx,joy])=>{c.save();c.translate(dx,0);c.rotate(-tilt);line([[-120,200],[0,0],[120,200]],3,'rgba(220,200,160,.8)');
+      c.beginPath();c.ellipse(0,200,150,26,0,0,Math.PI);c.fillStyle='#8A7A5A';c.fill();rr(-150,190,300,12,6,'#A8946A');
+      if(joy){glow(0,130,260,'rgba(255,220,150,.8)');circ(0,130,62,'#FFF0CC');circ(0,130,40,'#FFFFFF');}
+      else{[[-60,170,40],[10,166,46],[70,172,34],[-20,130,36],[40,126,30]].forEach(([x,y,r],k)=>{ell(x,y,r,r*.8,['#3A3A48','#2E2E3A','#44445A'][k%3]);ell(x-r*.3,y-r*.3,r*.4,r*.25,'rgba(255,255,255,.08)');});}
+      c.restore();});
+    c.restore();
+    const lx=px-450*Math.cos(tilt),ly=py-450*Math.sin(tilt),rx=px+450*Math.cos(tilt),ry=py+450*Math.sin(tilt);
+    txt('지상의 고난',lx,ly+300,34,800,K.mute);txt('천국의 기쁨',rx,ry+300,34,800,K.gold);
+    quote(['저울의 한쪽에 지상의 고난이 있다면','그 반대편에는 천국의 기쁨을 올려 놓는 것'],'성경과 기독교 전통의 습관 — C. S. 루이스 [1]',W/2-470,60,940,env(u,5.0,9.0),{size:38});
+    c.restore();}
+  chapter('05','천국에 대한 갈망',u);vignette();
+}
+function s6(u){
+  bg('#0F1428','#1E2644',8,.6);dust(40,3,'rgba(255,230,180,A)',.35);
+  const cards=[['오직 예수 그리스도','구원은 하나님의 은혜 [10]'],['삶의 방식','사랑의 열매로 드러남 [2][3][5][8]'],['구원의 목적은 사랑','예수님은 수단이 아님 [5]'],['갈망의 실체','고난과 비교할 수 없는 기쁨 [1][4]'],['지극히 작은 자를 돌봄','천국 백성의 표지 [9]']];
+  cards.forEach(([t1,t2],i)=>{const a=eSine(prog(u,.9+i*.8,1.6+i*.8));if(a<=0)return;const x=130+i*340,y=330+(1-a)*40;c.save();c.globalAlpha=a;
+    rr(x,y,300,420,22,'rgba(8,10,26,.85)');c.strokeStyle='rgba(242,196,107,.35)';c.lineWidth=2;c.beginPath();c.roundRect(x,y,300,420,22);c.stroke();
+    txt(String(i+1),x+36,y+62,44,900,K.gold,{align:'left'});
+    const ix=x+150,iy=y+190;
+    if(i===0){glow(ix,iy,120,'rgba(255,220,150,.7)');person({x:ix,y:iy+80,s:.55,light:1,noShadow:1});}
+    if(i===1){c.fillStyle='#D8C9A8';c.beginPath();c.moveTo(ix-110,iy+70);c.quadraticCurveTo(ix,iy+10,ix+110,iy-40);c.lineTo(ix+110,iy-20);c.quadraticCurveTo(ix,iy+34,ix-110,iy+94);c.fill();[[-80,74],[-30,52],[30,26],[80,0]].forEach(([dx,dy],k)=>flower(ix+dx,iy+dy-10,.9,[K.rose,K.goldL,'#B8A6E8',K.teal][k]));}
+    if(i===2){glow(ix,iy,110,'rgba(255,170,150,.5)');heart(ix,iy+10,1.3,K.rose);}
+    if(i===3){person({x:ix,y:iy+100,s:.58,pose:'lookup',shirt:'#3A6F7C',hair:'#2B2128',chestLight:1.2,noShadow:1});}
+    if(i===4){c.fillStyle=K.skin;c.beginPath();c.ellipse(ix-10,iy+50,90,34,-.15,0,Math.PI*2);c.fill();for(let k=0;k<4;k++)rr(ix+30+k*0,iy+20-k*14,60,16,8,K.skin);person({x:ix-10,y:iy+30,s:.4,shirt:'#7A4A6A',hair:'#6A4A2A',hairStyle:'long',noShadow:1,mouth:'smile'});}
+    txt(t1,x+150,y+340,28,800,K.cream);txt(t2,x+150,y+380,20,500,K.mute);c.restore();});
+  caption('마태복음 25장 — 어떤 정체성을 가졌든지, 지극히 작은 자를 돌보는 사랑이 천국 백성의 표지입니다 [9]',env(u,5.0,7.6));
+  chapter('06','종합',u);vignette();
+}
+function sEnd(u){
+  const w=eSine(prog(u,0,3.5));
+  bg(mixC(K.night0,'#1A2350',w),mixC('#1A2142','#C98A5A',w),1,1-w*.6);
+  glow(W/2,H+200,1100,'rgba(255,190,120,.35)',w);
+  const push=1.06-.08*eSine(prog(u,0,10.5));c.save();c.translate(W/2,H/2);c.scale(push,push);c.translate(-W/2,-H/2);
+  planet(W/2+60,H+560,900,mixC('#2C3E6B','#4A5A7E',w),'#141C38',u);
+  const cx=W/2+60,cy=H+560,r=900;
+  const crowd=[[-.42,'#7A4A6A','#6A4A2A','long'],[-.34,'#4A6A3A','#1A1A1A','short'],[-.27,'#3E4A6A','#3A3030','bald'],[-.2,'#6A5A3A','#8A7A6A','bun'],[.2,'#3A4A7A','#2B2128','short'],[.27,'#7A3A3A','#1A1A1A','long'],[.34,'#5A5A6A','#6A4A2A','short'],[.41,'#3A6A6A','#2B2128','bun'],[-.13,'#2A2A38','#5A5050','short'],[.13,'#4A4E6E','#2B2128','long']];
+  crowd.forEach(([da,sh,hrc,hs],i)=>{const a=eSine(prog(u,2.4+i*.18,3.2+i*.18));if(a<=0)return;const ang=-Math.PI/2+da;const x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r;
+    c.save();c.translate(x,y);c.rotate(da);person({x:0,y:0,s:.85,a,pose:'stand',shirt:sh,hair:hrc,hairStyle:hs,flip:da>0,look:4,chestLight:a*.8,skin:[K.skin,'#C98A62','#8A5A3A','#F0C8A8'][i%4]});c.restore();});
+  const st=prog(u,.6,1.4);
+  person({x:W/2+30,y:H+560-900+4,s:1.05,pose:st<1?'sit':'stand',arms:'stand',shirt:'#3A6F7C',hair:'#2B2128',look:5,chestLight:eSine(prog(u,1.2,2.4))*1.2,mouth:u>3?'smile':'flat'});
+  person({x:W/2+150,y:H+560-900+2,s:1.08,light:1,la:eSine(prog(u,1.0,2.2)),a:eSine(prog(u,1.0,2.2)),flip:1});
+  dust(50,11,'rgba(255,230,180,A)',.45*w);
+  c.restore();
+  const A=env(u,.8,6.6,.6);
+  [['천국에 갈 수 있는지는',K.cream],['당신의 성적 지향이 아니라,',K.cream],['예수 그리스도가 당신의 천국이신지에',K.gold],['달려 있습니다.',K.cream]].forEach(([s,col],i)=>{const a=eSine(prog(u,.9+i*.75,1.6+i*.75))*A;txt(s,W/2,170+i*84,58,800,col,{a});});
+  txt('[2][3][10]',W/2,170+4*84-10,24,600,K.mute,{a:A*prog(u,4,4.5)});
+  const B=env(u,6.7,10.6,.6);
+  txt('이 기준은 동성애자에게만이 아니라',W/2,260,58,800,K.cream,{a:B});txt('모든 그리스도인에게 동일하게 적용됩니다.',W/2,350,58,800,K.gold,{a:eSine(prog(u,7.2,7.9))*B});
+  txt('살리고 세우며 용서하고 사랑하는 삶의 열매로 [2][3][5][8][9]',W/2,420,28,600,K.mute,{a:eSine(prog(u,7.8,8.4))*B});
+  const s_=prog(u,8.6,9.4);txt('근거 — C. S. 루이스 [1][4] · 황주 [2][3][5][9] · 이용민 [6] · 김진수 [7] · 조문길 [8] · 본회퍼 [10]',W/2,1040,22,500,K.cream,{a:s_*.8});
+  vignette(.45);
+  const fo=prog(u,10.0,10.5);if(fo>0){c.fillStyle=`rgba(0,0,0,${fo})`;c.fillRect(0,0,W,H);}
+}
+const SC=[[0,7.5,sIntro],[7.5,18,s1],[18,29,s2],[29,38,s3],[38,49,s4],[49,58,s5],[58,65.5,s6],[65.5,76,sEnd]];
+function frame(t){
+  T=t;MAIN.setTransform(1,0,0,1,0,0);MAIN.globalAlpha=1;MAIN.globalCompositeOperation='source-over';MAIN.letterSpacing='0px';
+  const XF=.45;let drawn=false;
+  for(let i=0;i<SC.length;i++){const [a,b,fn]=SC[i];
+    if(t>=a-XF&&t<b+XF){
+      const incoming=i>0&&t<a+XF;const alpha=incoming?eSine(prog(t,a-XF,a+XF)):1;
+      if(!drawn){c=MAIN;c.save();fn(t-a);c.restore();drawn=true;}
+      else{c=OFFC;c.setTransform(1,0,0,1,0,0);c.globalAlpha=1;c.clearRect(0,0,W,H);c.save();fn(t-a);c.restore();c=MAIN;c.save();c.globalAlpha=alpha;c.drawImage(OFF,0,0);c.restore();}
+    }}
+  c=MAIN;const fi=1-prog(t,0,.6);if(fi>0){c.fillStyle=`rgba(0,0,0,${fi})`;c.fillRect(0,0,W,H);}
+}
+window.renderAt=t=>{frame(t);return true;};
+window.grab=(t,type='image/png',q)=>{frame(t);return cv.toDataURL(type,q);};
+const CAPTURE=new URLSearchParams(location.search).has('capture');
+window.ready=Promise.all([F(900,40),F(800,40),F(700,40),F(600,40),F(500,40)].map(x=>document.fonts.load(x,'천국A'))).then(()=>document.fonts.ready).then(()=>{
+  if(!CAPTURE){const st=performance.now();const loop=n=>{frame(((n-st)/1000)%DUR);requestAnimationFrame(loop);};requestAnimationFrame(loop);}return true;});
+</script></body></html>
