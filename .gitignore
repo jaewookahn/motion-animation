@@ -1,0 +1,7 @@
+fonts/
+projects/*/out/
+*.mp4
+*.wav
+*.png
+__pycache__/
+.DS_Store
