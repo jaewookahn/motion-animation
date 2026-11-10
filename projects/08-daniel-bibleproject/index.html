@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>다니엘 — 바이블프로젝트 잉크 인포그래픽 스타일</title>
+<style>
+@font-face { font-family: BH; src: url(../../fonts/BlackHanSans-Regular.ttf); }
+@font-face { font-family: GA; src: url(../../fonts/Gaegu-Bold.ttf); }
+@font-face { font-family: NP; src: url(../../fonts/NanumPenScript-Regular.ttf); }
+html, body { margin: 0; background: #000; height: 100%; overflow: hidden; }
+canvas { position: absolute; inset: 0; margin: auto; width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W = 1920, H = 1080, DUR = 15.0;
+const INK = '#1C1712', TONE = '#8B8072', TONE2 = '#BCAE96', PAPER = '#E8D8BC', PAPERL = '#F1E6D0', RED = '#B5372A';
+const cv = document.getElementById('c');
+cv.width = W; cv.height = H;
+const c = cv.getContext('2d');
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOutCubic = x => 1 - Math.pow(1 - x, 3);
+const eInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eOutBack = (x, s = 1.7) => x <= 0 ? 0 : 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+const hr = i => {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+let BF = 0;
+
+// ───────── Kraft Paper Texture (World Space Canvas)
+const PX0 = -400, PY0 = -400, PW = 4640, PH = 2960;
+const paper = document.createElement('canvas');
+paper.width = PW; paper.height = PH;
+(function() {
+  const p = paper.getContext('2d');
+  p.fillStyle = PAPER;
+  p.fillRect(0, 0, PW, PH);
+  for (let i = 0; i < 140; i++) {
+    const x = hr(i * 3.1) * PW, y = hr(i * 7.7) * PH, r = 150 + hr(i * 9.9) * 500;
+    const g = p.createRadialGradient(x, y, 0, x, y, r);
+    const dark = hr(i * 1.7) > 0.5;
+    g.addColorStop(0, dark ? 'rgba(150,115,70,.07)' : 'rgba(255,248,230,.10)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    p.fillStyle = g;
+    p.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  p.lineCap = 'round';
+  for (let i = 0; i < 9000; i++) {
+    const x = hr(i * 0.37) * PW, y = hr(i * 0.91 + 5) * PH, a = hr(i * 1.3) * Math.PI, l = 4 + hr(i * 2.9) * 16;
+    p.strokeStyle = hr(i * 4.1) > 0.5 ? 'rgba(120,88,50,.10)' : 'rgba(255,250,235,.16)';
+    p.lineWidth = 1 + hr(i * 5.3) * 1.2;
+    p.beginPath(); p.moveTo(x, y); p.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); p.stroke();
+  }
+  for (let i = 0; i < 5000; i++) {
+    const x = hr(i * 0.53 + 2) * PW, y = hr(i * 0.77 + 9) * PH;
+    p.fillStyle = `rgba(70,48,25,${0.12 + hr(i) * 0.25})`;
+    p.fillRect(x, y, 1.6 + hr(i * 3) * 1.6, 1.6 + hr(i * 5) * 1.4);
+  }
+  for (let i = 0; i < 500; i++) {
+    const x = hr(i * 0.61 + 4) * PW, y = hr(i * 0.29 + 1) * PH;
+    p.fillStyle = 'rgba(222,178,60,.55)';
+    p.beginPath(); p.arc(x, y, 1.5 + hr(i * 7) * 2, 0, 7); p.fill();
+  }
+})();
+
+// ───────── Point & Curve Generators
+function Lp(x1, y1, x2, y2, n = 8) {
+  const o = [];
+  for (let i = 0; i <= n; i++) o.push([lerp(x1, x2, i / n), lerp(y1, y2, i / n)]);
+  return o;
+}
+function Qp(a, b, e, n = 24) {
+  const o = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    o.push([lerp(lerp(a[0], b[0], u), lerp(b[0], e[0], u), u), lerp(lerp(a[1], b[1], u), lerp(b[1], e[1], u), u)]);
+  }
+  return o;
+}
+function Cp(a, b, d, e, n = 30) {
+  const o = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n, v = 1 - u;
+    o.push([v*v*v*a[0] + 3*v*v*u*b[0] + 3*v*u*u*d[0] + u*u*u*e[0], v*v*v*a[1] + 3*v*v*u*b[1] + 3*v*u*u*d[1] + u*u*u*e[1]]);
+  }
+  return o;
+}
+function Ap(cx, cy, r, a0, a1, n = 40, ry) {
+  const o = [];
+  for (let i = 0; i <= n; i++) {
+    const a = lerp(a0, a1, i / n);
+    o.push([cx + Math.cos(a) * r, cy + Math.sin(a) * (ry ?? r)]);
+  }
+  return o;
+}
+function Rp(x, y, w, h) {
+  return [...Lp(x, y, x + w, y, 10), ...Lp(x + w, y, x + w, y + h, 8).slice(1), ...Lp(x + w, y + h, x, y + h, 10).slice(1), ...Lp(x, y + h, x, y, 8).slice(1)];
+}
+const cat = (...a) => a.reduce((o, p) => o.concat(o.length ? p.slice(1) : p), []);
+
+// ───────── Ink Primitives (with 12Hz Handcrafted Boil)
+function jit(i, seed, amp) {
+  return [(hr(i * 12.99 + seed * 78.23 + BF * 37.7) - 0.5) * 2 * amp, (hr(i * 39.35 + seed * 11.13 + BF * 71.3) - 0.5) * 2 * amp];
+}
+function jp(pts, seed, amp) {
+  return pts.map((q, i) => {
+    const j = jit(i, seed, amp);
+    return [q[0] + j[0], q[1] + j[1]];
+  });
+}
+function ink(pts, p, o = {}) {
+  if (p <= 0 || pts.length < 2) return;
+  const w = o.w ?? 5, amp = o.amp ?? 1.3, seed = o.seed ?? (pts[0][0] * 0.13 + pts[0][1] * 0.71);
+  const P = jp(pts, seed, amp);
+  if (o.close) P.push(P[0]);
+  let L = 0;
+  const d = [];
+  for (let i = 1; i < P.length; i++) {
+    const s = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    d.push(s); L += s;
+  }
+  let lim = L * clamp(p);
+  c.beginPath();
+  c.moveTo(P[0][0], P[0][1]);
+  for (let i = 1; i < P.length && lim > 0; i++) {
+    if (d[i - 1] <= lim) {
+      c.lineTo(P[i][0], P[i][1]);
+      lim -= d[i - 1];
+    } else {
+      const u = lim / d[i - 1];
+      c.lineTo(lerp(P[i - 1][0], P[i][0], u), lerp(P[i - 1][1], P[i][1], u));
+      lim = 0;
+    }
+  }
+  c.lineWidth = w;
+  c.strokeStyle = o.col ?? INK;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.stroke();
+}
+function fillP(pts, col, a = 1, o = {}) {
+  if (a <= 0) return;
+  const P = jp(pts, o.seed ?? (pts[0][0] * 0.31 + pts[0][1] * 0.17), o.amp ?? 1.1);
+  c.save();
+  c.globalAlpha *= a;
+  c.beginPath();
+  c.moveTo(P[0][0], P[0][1]);
+  for (const q of P) c.lineTo(q[0], q[1]);
+  c.closePath();
+  c.fillStyle = col;
+  c.fill();
+  c.restore();
+}
+function hatch(clipPts, x0, y0, x1, y1, sp, p, o = {}) {
+  c.save();
+  c.beginPath();
+  c.moveTo(clipPts[0][0], clipPts[0][1]);
+  for (const q of clipPts) c.lineTo(q[0], q[1]);
+  c.closePath();
+  c.clip();
+  const n = Math.ceil((x1 - x0 + (y1 - y0)) / sp);
+  const k = Math.floor(n * clamp(p));
+  for (let i = 0; i < k; i++) {
+    const x = x0 + i * sp;
+    ink(Lp(x, y0, x - (y1 - y0) * (o.slant ?? 0.6), y1, 3), 1, {
+      w: o.w ?? 2.4, col: o.col ?? INK, amp: 0.9, seed: i * 3.3 + x0
+    });
+  }
+  c.restore();
+}
+function dot(x, y, r, col = INK) {
+  c.beginPath();
+  c.arc(x, y, r, 0, Math.PI * 2);
+  c.fillStyle = col;
+  c.fill();
+}
+function wipe(x, y, w, h, p, fn) {
+  if (p <= 0) return;
+  c.save();
+  c.beginPath();
+  c.rect(x, y, w * p, h);
+  c.clip();
+  fn();
+  c.restore();
+}
+function hand(str, x, y, size, p, o = {}) {
+  c.save();
+  c.font = `${size}px ${o.font ?? 'NP'}`;
+  c.textBaseline = 'alphabetic';
+  c.textAlign = 'left';
+  const w = c.measureText(str).width;
+  const x0 = o.align === 'center' ? x - w / 2 : x;
+  wipe(x0 - 10, y - size * 1.05, w + 20, size * 1.45, p, () => {
+    c.fillStyle = o.col ?? INK;
+    c.fillText(str, x0, y);
+  });
+  c.restore();
+  return w;
+}
+function lettering(str, x, y, size, t0, t, o = {}) {
+  c.save();
+  c.font = `${size}px BH`;
+  c.textBaseline = 'alphabetic';
+  c.letterSpacing = (o.ls ?? 4) + 'px';
+  const chars = [...str];
+  let acc = '';
+  const tot = c.measureText(str).width;
+  const x0 = o.align === 'center' ? x - tot / 2 : x;
+  chars.forEach((ch, i) => {
+    const cx = c.measureText(acc).width;
+    acc += ch;
+    const cw = c.measureText(ch).width;
+    const p = eOutBack(prog(t, t0 + i * (o.st ?? 0.09), t0 + i * (o.st ?? 0.09) + 0.3), 2.2);
+    if (p <= 0) return;
+    const j = jit(i, BF * 0.1 + i, 1.6);
+    c.save();
+    c.translate(x0 + cx + cw / 2 + j[0], y - size * 0.35 + j[1]);
+    c.rotate((hr(i * 5.5) - 0.5) * 0.07);
+    c.scale(p, p);
+    c.translate(-cw / 2, size * 0.35);
+    const sd = size * 0.055;
+    c.fillStyle = INK;
+    c.fillText(ch, sd, sd);
+    c.fillStyle = o.fill ?? PAPERL;
+    c.fillText(ch, 0, 0);
+    c.lineWidth = size * 0.035;
+    c.strokeStyle = INK;
+    c.lineJoin = 'round';
+    c.strokeText(ch, 0, 0);
+    c.restore();
+  });
+  c.restore();
+}
+function ribbon(x, y, w, h, p, str, size = 44) {
+  if (p <= 0) return;
+  const e = eOutCubic(p);
+  const ww = w * e;
+  const pts = [[x, y], [x + ww, y], [x + ww - h * 0.28, y + h / 2], [x + ww, y + h], [x, y + h], [x + h * 0.28, y + h / 2]];
+  fillP(pts, INK, 1, { seed: x * 0.01 + y, amp: 1 });
+  c.save();
+  c.beginPath();
+  c.rect(x, y, ww, h);
+  c.clip();
+  c.font = `${size}px GA`;
+  c.fillStyle = PAPERL;
+  c.textBaseline = 'middle';
+  c.fillText(str, x + h * 0.55, y + h / 2 + 3);
+  c.restore();
+}
+function badge(x, y, r, n, p) {
+  const s = eOutBack(p, 2.4);
+  if (s <= 0) return;
+  c.save();
+  c.translate(x, y);
+  c.scale(s, s);
+  fillP(Ap(0, 0, r, 0, Math.PI * 2, 30), INK, 1, { seed: n });
+  c.font = `${r * 1.2}px BH`;
+  c.fillStyle = PAPERL;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(n, 0, r * 0.08);
+  c.restore();
+}
+function arrow(pts, p, col = RED, w = 10) {
+  ink(pts, p, { w, col, amp: 1 });
+  if (p >= 1 && pts.length >= 2) {
+    const n = pts.length;
+    const a = pts[n - 1];
+    const b = n >= 3 ? pts[n - 3] : pts[n - 2];
+    const ang = Math.atan2(a[1] - b[1], a[0] - b[0]);
+    ink([[a[0] - Math.cos(ang - 0.5) * 34, a[1] - Math.sin(ang - 0.5) * 34], a, [a[0] - Math.cos(ang + 0.5) * 34, a[1] - Math.sin(ang + 0.5) * 34]], 1, {
+      w, col, amp: 0.6
+    });
+  }
+}
+
+// ───────── BibleProject Characters (Daniel, Lions, Darius)
+function drawDanielCharacter(p, pose = 'pray') {
+  // Hebrew Sage Robe
+  const robe = [[-30, -180], [-45, -80], [-55, 0], [55, 0], [45, -80], [30, -180]];
+  fillP(robe, TONE2, prog(p, 0.2, 0.5) * 0.85);
+  ink(robe, prog(p, 0, 0.4), { w: 5.5 });
+  // Robe sash (Red Accent)
+  ink(Lp(-42, -90, 42, -90, 6), prog(p, 0.3, 0.5), { w: 7, col: RED });
+
+  // Head & Beard
+  fillP(Ap(0, -210, 26, 0, Math.PI * 2, 24), PAPERL, prog(p, 0.2, 0.45));
+  ink(Ap(0, -210, 26, 0, Math.PI * 2, 24), prog(p, 0.2, 0.45), { w: 5 });
+  // Long Gray Beard
+  const beard = [[-24, -200], [-18, -140], [0, -120], [18, -140], [24, -200]];
+  fillP(beard, INK, prog(p, 0.35, 0.6));
+  ink(beard, prog(p, 0.35, 0.6), { w: 4 });
+
+  // Eyes & Headband
+  if (prog(p, 0.5, 0.7) > 0) {
+    dot(-8, -215, 3.2); dot(8, -215, 3.2);
+    ink(Lp(-26, -225, 26, -225, 4), 1, { w: 4, col: INK });
+  }
+
+  // Hands in Prayer
+  if (pose === 'pray') {
+    const hands = [[-12, -140], [0, -165], [12, -140]];
+    ink(hands, prog(p, 0.5, 0.8), { w: 6 });
+  } else if (pose === 'safe') {
+    // Open praise arms
+    ink([[-30, -150], [-60, -180], [-75, -220]], prog(p, 0.5, 0.8), { w: 6 });
+    ink([[30, -150], [60, -180], [75, -220]], prog(p, 0.5, 0.8), { w: 6 });
+  }
+}
+
+function drawLionFigure(p, asleep = false) {
+  // Powerful Lion Body (Ink Contour + Hatching)
+  const body = cat(Cp([-80, -40], [-60, -110], [60, -110], [90, -40], 16), Lp(90, -40, 70, 0, 8), Lp(70, 0, -80, 0, 10));
+  fillP(body, TONE, prog(p, 0.1, 0.4) * 0.75);
+  ink(body, prog(p, 0, 0.4), { w: 5 });
+
+  // Majestic Ink Mane
+  const mane = Ap(-80, -70, 65, 0, Math.PI * 2, 28);
+  fillP(mane, INK, prog(p, 0.3, 0.6));
+  ink(mane, prog(p, 0.3, 0.6), { w: 6 });
+
+  // Head & Muzzle
+  fillP(Ap(-80, -70, 36, 0, Math.PI * 2, 20), PAPERL, prog(p, 0.4, 0.7));
+  ink(Ap(-80, -70, 36, 0, Math.PI * 2, 20), prog(p, 0.4, 0.7), { w: 5 });
+
+  // Sleeping vs Snarling
+  if (asleep) {
+    // Closed peaceful eyes
+    ink(Ap(-92, -74, 8, 0.2, Math.PI - 0.2, 10), prog(p, 0.6, 0.9), { w: 3.5 });
+    ink(Ap(-68, -74, 8, 0.2, Math.PI - 0.2, 10), prog(p, 0.6, 0.9), { w: 3.5 });
+  } else {
+    // Fierce Eyes & Fangs
+    dot(-92, -74, 4.2); dot(-68, -74, 4.2);
+    // Sharp Fangs
+    ink([[-88, -52], [-84, -40], [-80, -52]], prog(p, 0.6, 0.9), { w: 3 });
+    ink([[-76, -52], [-72, -40], [-68, -52]], prog(p, 0.6, 0.9), { w: 3 });
+  }
+}
+
+// ───────── Panels Definition (BibleProject Grid)
+const PN = [
+  { x: 100,  y: 440, t: 1.25, label: '바빌론 속의 다니엘' },
+  { x: 1330, y: 440, t: 3.4,  label: '금령의 덫' },
+  { x: 2560, y: 440, t: 5.5,  label: '사자굴에 던져지다' },
+  { x: 2560, y: 1320, t: 7.6,  label: '사자들의 입을 막으시다' },
+  { x: 1330, y: 1320, t: 9.7,  label: '새벽의 다리오 왕' },
+  { x: 100,  y: 1320, t: 11.8, label: '영원한 하나님 나라' }
+];
+const PWD = 1180, PHT = 800;
+
+function frameP(i, t) {
+  const P = PN[i], s = P.t;
+  ink(Rp(P.x, P.y, PWD, PHT), prog(t, s - 0.25, s + 0.15), { w: 6, seed: i * 9.1 });
+  ink(Rp(P.x + 8, P.y + 8, PWD - 16, PHT - 16), prog(t, s - 0.15, s + 0.25), { w: 2, seed: i * 3.7 });
+  badge(P.x + 60, P.y + 62, 34, i + 1, prog(t, s, s + 0.3));
+  ribbon(P.x + 108, P.y + 30, P.label.length * 44 + 110, 66, prog(t, s + 0.08, s + 0.38), P.label, 46);
+}
+function clipPanel(i) {
+  const P = PN[i];
+  c.beginPath();
+  c.rect(P.x + 10, P.y + 10, PWD - 20, PHT - 20);
+  c.clip();
+}
+
+// Panel 1: 바빌론 속의 다니엘 (기도)
+function panel1(t) {
+  const P = PN[0], s = P.t;
+  if (t < s - 0.3) return;
+  c.save(); clipPanel(0); c.translate(P.x, P.y);
+
+  // Ground line
+  ink(Lp(40, 680, 1140, 680, 24), prog(t, s + 0.05, s + 0.35), { w: 4 });
+
+  // Babylonian Window facing Jerusalem
+  const win = cat(Lp(120, 680, 120, 220, 16), Qp([120, 220], [280, 120], [440, 220], 20), Lp(440, 220, 440, 680, 16));
+  ink(win, prog(t, s + 0.1, s + 0.5), { w: 5 });
+  hatch(win, 120, 120, 440, 680, 28, prog(t, s + 0.3, s + 0.7), { w: 2, col: TONE });
+
+  // Daniel Character Praying
+  c.save();
+  c.translate(680, 680);
+  drawDanielCharacter(prog(t, s + 0.2, s + 0.8), 'pray');
+  c.restore();
+
+  // Jerusalem Light stream
+  arrow([[440, 260], [620, 460]], prog(t, s + 0.6, s + 0.9), RED, 6);
+
+  // Handwritten Inscriptions
+  hand('"하루 세 번씩 무릎을 꿇고 기도하며"', 520, 200, 56, prog(t, s + 0.7, s + 1.1));
+  hand('그의 하나님께 감사하였더라', 560, 270, 52, prog(t, s + 0.9, s + 1.3));
+  hand('(단 6:10)', 960, 330, 36, prog(t, s + 1.1, s + 1.4), { col: TONE });
+
+  c.restore();
+}
+
+// Panel 2: 금령의 덫 (신하들의 음모와 두루마리 조서)
+function panel2(t) {
+  const P = PN[1], s = P.t;
+  if (t < s - 0.3) return;
+  c.save(); clipPanel(1); c.translate(P.x, P.y);
+
+  // Ground
+  ink(Lp(40, 680, 1140, 680, 24), prog(t, s + 0.05, s + 0.35), { w: 4 });
+
+  // Royal Persian Decree Scroll (금령 두루마리)
+  const scW = 480, scH = 340;
+  const scX = 140, scY = 220;
+  fillP(Rp(scX, scY, scW, scH), PAPERL, prog(t, s + 0.1, s + 0.4));
+  ink(Rp(scX, scY, scW, scH), prog(t, s + 0.1, s + 0.4), { w: 5 });
+  // Scroll rollers
+  ink(Lp(scX, scY - 15, scX, scY + scH + 15, 6), prog(t, s + 0.2, s + 0.5), { w: 10 });
+  ink(Lp(scX + scW, scY - 15, scX + scW, scY + scH + 15, 6), prog(t, s + 0.2, s + 0.5), { w: 10 });
+
+  // Red Royal Seal Stamp on scroll
+  const sealP = prog(t, s + 0.6, s + 0.9);
+  if (sealP > 0) {
+    c.save();
+    c.translate(scX + scW / 2, scY + scH - 70);
+    c.scale(sealP, sealP);
+    fillP(Ap(0, 0, 42, 0, Math.PI * 2, 20), RED, 1);
+    ink(Ap(0, 0, 42, 0, Math.PI * 2, 20), 1, { w: 3, col: INK });
+    c.font = '32px BH'; c.fillStyle = PAPERL; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('王印', 0, 0);
+    c.restore();
+  }
+
+  // Whispering Officials Silhouette
+  const off1 = cat(Lp(780, 680, 780, 420, 10), Ap(810, 390, 26, 0, Math.PI * 2, 16), Lp(840, 420, 840, 680, 10));
+  fillP(off1, INK, prog(t, s + 0.3, s + 0.7));
+  const off2 = cat(Lp(920, 680, 920, 440, 10), Ap(950, 410, 24, 0, Math.PI * 2, 16), Lp(980, 440, 980, 680, 10));
+  fillP(off2, TONE, prog(t, s + 0.4, s + 0.8));
+
+  // Speech banner
+  hand('"30일 동안 왕 외에"', 210, 300, 54, prog(t, s + 0.4, s + 0.8));
+  hand('어떤 신에게도 구하지 못하게 하소서', 180, 370, 48, prog(t, s + 0.6, s + 1.0));
+  hand('어기면 사자굴에 던져넣나이다', 180, 440, 48, prog(t, s + 0.8, s + 1.2), { col: RED });
+
+  c.restore();
+}
+
+// Panel 3: 사자굴에 던져지다 (돌로 막힌 굴)
+function panel3(t) {
+  const P = PN[2], s = P.t;
+  if (t < s - 0.3) return;
+  c.save(); clipPanel(2); c.translate(P.x, P.y);
+
+  // Deep Pit Hatching (어두운 지하 굴 단면)
+  const pit = cat(Lp(100, 160, 400, 720, 14), Lp(400, 720, 1080, 720, 14), Lp(1080, 720, 800, 160, 14));
+  fillP(pit, TONE2, prog(t, s + 0.1, s + 0.5));
+  ink(pit, prog(t, s + 0.1, s + 0.5), { w: 6 });
+  hatch(pit, 100, 160, 1080, 720, 24, prog(t, s + 0.3, s + 0.7), { w: 2.2, col: INK });
+
+  // Giant Sealing Stone at entrance
+  const stone = Ap(600, 220, 110, 0, Math.PI * 2, 24);
+  fillP(stone, PAPERL, prog(t, s + 0.4, s + 0.7));
+  ink(stone, prog(t, s + 0.4, s + 0.7), { w: 6 });
+  // Royal seal on stone
+  dot(600, 220, 16, RED);
+
+  // Daniel lower down into darkness
+  c.save();
+  c.translate(600, 680);
+  c.scale(0.85, 0.85);
+  drawDanielCharacter(prog(t, s + 0.5, s + 0.9), 'pray');
+  c.restore();
+
+  // Rope going down
+  ink(Lp(600, 220, 600, 480, 10), prog(t, s + 0.5, s + 0.8), { w: 4, col: RED });
+
+  hand('"이에 돌을 굴려다가"', 680, 360, 56, prog(t, s + 0.7, s + 1.1));
+  hand('굴 어귀를 막고 왕의 인장으로 봉하니', 520, 430, 50, prog(t, s + 0.9, s + 1.3));
+
+  c.restore();
+}
+
+// Panel 4: 사자들의 입을 막으시다 (천사의 임재와 얌전해진 사자)
+function panel4(t) {
+  const P = PN[3], s = P.t;
+  if (t < s - 0.3) return;
+  c.save(); clipPanel(3); c.translate(P.x, P.y);
+
+  // Cave Ground
+  ink(Lp(40, 700, 1140, 700, 24), prog(t, s + 0.05, s + 0.35), { w: 4 });
+
+  // Two Lions in Cave
+  // Left Lion (Docile / Asleep)
+  c.save();
+  c.translate(280, 700);
+  drawLionFigure(prog(t, s + 0.2, s + 0.6), true);
+  c.restore();
+
+  // Right Lion (Docile)
+  c.save();
+  c.translate(900, 700);
+  c.scale(-1, 1);
+  drawLionFigure(prog(t, s + 0.3, s + 0.7), true);
+  c.restore();
+
+  // Daniel standing peacefully in center
+  c.save();
+  c.translate(590, 700);
+  drawDanielCharacter(prog(t, s + 0.3, s + 0.7), 'safe');
+  c.restore();
+
+  // Divine Heavenly Light Rays from Above
+  const beamP = prog(t, s + 0.5, s + 0.9);
+  if (beamP > 0) {
+    const rays = [[590, 120, 420, 700], [590, 120, 590, 700], [590, 120, 760, 700]];
+    rays.forEach(([x1, y1, x2, y2]) => {
+      ink(Lp(x1, y1, x2, y2, 8), beamP, { w: 4, col: RED });
+    });
+  }
+
+  hand('"나의 하나님이 이미 천사를 보내어"', 260, 200, 58, prog(t, s + 0.7, s + 1.1), { col: RED });
+  hand('사자들의 입을 봉하셨으므로', 380, 270, 54, prog(t, s + 0.9, s + 1.3));
+
+  c.restore();
+}
+
+// Panel 5: 새벽의 다리오 왕 (새벽 외침)
+function panel5(t) {
+  const P = PN[4], s = P.t;
+  if (t < s - 0.3) return;
+  c.save(); clipPanel(4); c.translate(P.x, P.y);
+
+  // Ground
+  ink(Lp(40, 700, 1140, 700, 24), prog(t, s + 0.05, s + 0.35), { w: 4 });
+
+  // Early Morning Sun Rising
+  const dawn = Ap(1000, 700, 280, Math.PI, Math.PI * 2, 30);
+  fillP(dawn, PAPERL, prog(t, s + 0.1, s + 0.4));
+  ink(dawn, prog(t, s + 0.1, s + 0.4), { w: 4 });
+
+  // King Darius Figure Rushing
+  const darius = cat(Lp(320, 700, 320, 460, 10), Ap(320, 410, 28, 0, Math.PI * 2, 16), Lp(360, 460, 360, 700, 10));
+  fillP(darius, INK, prog(t, s + 0.2, s + 0.6));
+  // Crown on King
+  const crown = [[300, 385], [310, 365], [320, 380], [330, 365], [340, 385]];
+  fillP(crown, RED, prog(t, s + 0.4, s + 0.7));
+  ink(crown, prog(t, s + 0.4, s + 0.7), { w: 3 });
+
+  // King's cry speech bubble
+  const bp = prog(t, s + 0.5, s + 0.85);
+  if (bp > 0) {
+    const bx = 460, by = 260, bw = 620, bh = 220;
+    fillP(Rp(bx, by, bw, bh), PAPERL, bp);
+    ink(Rp(bx, by, bw, bh), bp, { w: 5 });
+    // Bubble pointer
+    ink([[bx, by + 120], [bx - 60, by + 160], [bx + 20, by + 160]], bp, { w: 4 });
+
+    hand('"살아 계시는 하나님의 종 다니엘아,', bx + bw/2, by + 75, 48, prog(t, s + 0.7, s + 1.1), { align: 'center' });
+    hand('네 하나님이 너를 사자들에게서', bx + bw/2, by + 135, 46, prog(t, s + 0.9, s + 1.3), { align: 'center' });
+    hand('구원하셨느냐!"', bx + bw/2, by + 195, 52, prog(t, s + 1.1, s + 1.4), { align: 'center', col: RED });
+  }
+
+  c.restore();
+}
+
+// Panel 6: 영원한 하나님 나라 (새로운 조서와 찬양)
+function panel6(t) {
+  const P = PN[5], s = P.t;
+  if (t < s - 0.3) return;
+  c.save(); clipPanel(5); c.translate(P.x, P.y);
+
+  // Ground
+  ink(Lp(40, 700, 1140, 700, 24), prog(t, s + 0.05, s + 0.35), { w: 4 });
+
+  // Daniel Unharmed Standing Victorious
+  c.save();
+  c.translate(340, 700);
+  drawDanielCharacter(prog(t, s + 0.2, s + 0.6), 'safe');
+  c.restore();
+
+  // Grand Proclamation Decree
+  ribbon(480, 220, 580, 72, prog(t, s + 0.3, s + 0.7), '다리오 왕의 전국 조서', 46);
+
+  hand('"그는 살아 계시는 하나님이시요', 520, 360, 52, prog(t, s + 0.5, s + 0.9));
+  hand('영원히 변하지 않으실 이시며', 520, 430, 52, prog(t, s + 0.7, s + 1.1));
+  hand('그의 나라는 멸망하지 아니할 것이요', 520, 500, 52, prog(t, s + 0.9, s + 1.3), { col: RED });
+  hand('그의 권세는 무궁할 것이라"', 520, 570, 52, prog(t, s + 1.1, s + 1.4), { col: RED });
+  hand('— 다니엘 6:26', 820, 640, 40, prog(t, s + 1.2, s + 1.5), { col: TONE });
+
+  c.restore();
+}
+
+// ───────── Header Title & Flow Arrows
+function titleBlock(t) {
+  lettering('다니엘', 180, 330, 240, 0.1, t, { st: 0.12, ls: 6 });
+  ink(Cp([180, 370], [540, 400], [880, 350], [1220, 380], 36), prog(t, 0.45, 0.8), { w: 7 });
+  hand('사자굴과 영원한 하나님의 나라', 1260, 320, 58, prog(t, 0.6, 1.0), { col: INK });
+
+  // Top Right Bible Ref Ribbon
+  ribbon(2580, 190, 560, 80, prog(t, 13.6, 14.2), '다니엘 6장 1절 – 28절', 50);
+  hand('믿음 · 음모 · 구원', 2620, 345, 58, prog(t, 13.8, 14.5));
+}
+
+function flowArrows(t) {
+  const A = [
+    [Cp([1180, 1060], [1240, 980], [1330, 980], [1400, 1060], 20), 13.8],
+    [Cp([2410, 1060], [2470, 980], [2560, 980], [2630, 1060], 20), 13.9],
+    [Cp([3620, 1150], [3720, 1240], [3720, 1300], [3640, 1390], 20), 14.0],
+    [Cp([2640, 1560], [2580, 1480], [2490, 1480], [2420, 1560], 20), 14.1],
+    [Cp([1410, 1560], [1350, 1480], [1260, 1480], [1190, 1560], 20), 14.2]
+  ];
+  A.forEach(([pts, s]) => arrow(pts, prog(t, s, s + 0.22)));
+}
+
+// ───────── Camera Track
+const KEYS = [
+  [0.0,  760,  300, 1.12],   // Title
+  [1.0,  760,  290, 1.17],
+  [1.45, 690,  840, 1.32],   // Panel 0: 기도
+  [3.1,  700,  840, 1.35],
+  [3.6,  1920, 840, 1.32],   // Panel 1: 금령
+  [5.2,  1930, 840, 1.35],
+  [5.7,  3150, 840, 1.32],   // Panel 2: 투옥
+  [7.3,  3160, 845, 1.35],
+  [7.8,  3150, 1720, 1.32],  // Panel 3: 입 막으심
+  [9.4,  3140, 1720, 1.35],
+  [9.9,  1920, 1720, 1.32],  // Panel 4: 새벽 왕
+  [11.5, 1910, 1720, 1.35],
+  [12.0, 690,  1720, 1.32],  // Panel 5: 영원한 나라
+  [13.6, 690,  1715, 1.36],
+  [14.3, 1920, 1100, 0.495], // Zoom Out: Full Poster View
+  [15.0, 1920, 1100, 0.49]
+];
+
+function cam(t) {
+  for (let i = 0; i < KEYS.length - 1; i++) {
+    const a = KEYS[i], b = KEYS[i + 1];
+    if (t <= b[0]) {
+      const u = eInOutCubic(prog(t, a[0], b[0]));
+      const z = 1 / lerp(1 / a[3], 1 / b[3], u);
+      return { x: lerp(a[1], b[1], u), y: lerp(a[2], b[2], u), z };
+    }
+  }
+  const l = KEYS[KEYS.length - 1];
+  return { x: l[1], y: l[2], z: l[3] };
+}
+
+// ───────── Frame Function
+function frame(t) {
+  BF = Math.floor(t * 12); // 12Hz 손맛 지터
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalAlpha = 1;
+  c.letterSpacing = '0px';
+  c.fillStyle = '#261C14';
+  c.fillRect(0, 0, W, H);
+
+  const k = cam(t);
+  c.setTransform(k.z, 0, 0, k.z, W / 2 - k.x * k.z, H / 2 - k.y * k.z);
+
+  // Background Kraft Paper
+  c.drawImage(paper, PX0, PY0);
+
+  // Title Block
+  titleBlock(t);
+
+  // 6 Panels
+  for (let i = 0; i < 6; i++) {
+    if (t > PN[i].t - 0.3) frameP(i, t);
+  }
+  panel1(t);
+  panel2(t);
+  panel3(t);
+  panel4(t);
+  panel5(t);
+  panel6(t);
+
+  // Inter-panel Flow Arrows
+  flowArrows(t);
+
+  // Reset to screen coordinates for Vignette & Fades
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  const vg = c.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 1.0);
+  vg.addColorStop(0, 'rgba(60, 40, 20, 0)');
+  vg.addColorStop(1, 'rgba(40, 25, 12, 0.35)');
+  c.fillStyle = vg;
+  c.fillRect(0, 0, W, H);
+
+  // Fade In
+  const fi = 1 - prog(t, 0, 0.3);
+  if (fi > 0) {
+    c.fillStyle = `rgba(232, 216, 188, ${fi})`;
+    c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── Export Interface
+window.renderAt = t => { frame(t); return true; };
+window.grab = (t, type = 'image/png', q) => { frame(t); return cv.toDataURL(type, q); };
+
+const CAPTURE = new URLSearchParams(location.search).has('capture');
+window.ready = Promise.all(['40px BH', '40px GA', '40px NP'].map(x => document.fonts.load(x, '다니엘'))).then(() => document.fonts.ready).then(() => {
+  if (!CAPTURE) {
+    const st = performance.now();
+    const loop = n => {
+      frame(((n - st) / 1000) % DUR);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+  return true;
+});
+</script>
+</body>
+</html>
